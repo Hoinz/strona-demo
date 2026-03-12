@@ -139,26 +139,54 @@
   font-size: 1.2rem;
   margin-bottom: 1rem;
 }
+/* ── TIME SLOTS (grouped by hour) ── */
 .time-slots-grid {
   display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.time-slots-group {
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  align-items: start;
+  gap: 0.75rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid rgba(0,0,0,0.04);
+}
+.time-slots-group:last-child {
+  border-bottom: none;
+}
+.time-slots-group.all-taken {
+  opacity: 0.35;
+}
+.time-slots-hour {
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: var(--warm-brown);
+  padding-top: 0.45rem;
+  text-align: right;
+  letter-spacing: 0.02em;
+}
+.time-slots-row {
+  display: flex;
   flex-wrap: wrap;
-  gap: 0.6rem;
+  gap: 0.35rem;
 }
 .time-slot {
-  padding: 0.7rem 1.4rem;
+  padding: 0.45rem 0.85rem;
   border-radius: 50px;
   border: 1.5px solid var(--warm-brown);
   background: transparent;
   color: var(--charcoal);
-  font-size: 0.9rem;
+  font-size: 0.82rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all 0.25s ease;
   font-family: 'DM Sans', sans-serif;
 }
 .time-slot:hover:not(.taken) {
   background: var(--blush);
-  transform: translateY(-2px);
+  transform: translateY(-1px);
 }
 .time-slot.selected {
   background: var(--deep-olive);
@@ -168,9 +196,10 @@
 .time-slot.taken {
   background: #f0f0f0;
   color: #bbb;
-  border-color: #e0e0e0;
+  border-color: #e8e8e8;
   cursor: not-allowed;
   text-decoration: line-through;
+  font-size: 0.75rem;
 }
 
 /* ── BOOKING FORM ── */

@@ -325,26 +325,51 @@
     timeSlotsDate.textContent = formatDateDisplay(dateStr);
 
     timeSlotsGrid.innerHTML = '';
+
+    // Group slots by hour
+    var groups = {};
+    var groupOrder = [];
     slots.forEach(function(time) {
-      var btn = document.createElement('button');
-      btn.className = 'time-slot';
-      btn.textContent = time;
+      var hour = time.split(':')[0];
+      if (!groups[hour]) { groups[hour] = []; groupOrder.push(hour); }
+      groups[hour].push(time);
+    });
 
-      var parts = time.split(':');
-      var slotMins = parseInt(parts[0]) * 60 + parseInt(parts[1]);
+    groupOrder.forEach(function(hour) {
+      var groupEl = document.createElement('div');
+      groupEl.className = 'time-slots-group';
 
-      if (taken.includes(time)) {
-        btn.classList.add('taken');
-        btn.disabled = true;
-      } else if (dateStr === todayStr && slotMins <= currentMinutes) {
-        btn.classList.add('taken');
-        btn.disabled = true;
-      } else {
-        (function(t, b) {
-          b.addEventListener('click', function() { selectTime(t, b); });
-        })(time, btn);
-      }
-      timeSlotsGrid.appendChild(btn);
+      var labelEl = document.createElement('div');
+      labelEl.className = 'time-slots-hour';
+      labelEl.textContent = hour + ':00';
+      groupEl.appendChild(labelEl);
+
+      var rowEl = document.createElement('div');
+      rowEl.className = 'time-slots-row';
+
+      var allTaken = true;
+      groups[hour].forEach(function(time) {
+        var btn = document.createElement('button');
+        btn.className = 'time-slot';
+        btn.textContent = time;
+
+        var parts = time.split(':');
+        var slotMins = parseInt(parts[0]) * 60 + parseInt(parts[1]);
+        if (taken.includes(time) || (dateStr === todayStr && slotMins <= currentMinutes)) {
+          btn.classList.add('taken');
+          btn.disabled = true;
+        } else {
+          allTaken = false;
+          (function(t, b) {
+            b.addEventListener('click', function() { selectTime(t, b); });
+          })(time, btn);
+        }
+        rowEl.appendChild(btn);
+      });
+
+      if (allTaken) groupEl.classList.add('all-taken');
+      groupEl.appendChild(rowEl);
+      timeSlotsGrid.appendChild(groupEl);
     });
 
     timeSlotsSection.classList.add('visible');
