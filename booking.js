@@ -42,12 +42,16 @@
   var currentMonth, currentYear;
   var selectedDate = null;
   var selectedTime = null;
+  var selectedService = null;
+  var urlService = null;
   var takenSlots = {};
   var scheduleOverrides = {};
   var selectedDoctor = null;   // { id, name, specialty }
   var doctors = [];
   var unsubscribeSlots = null;
   var unsubscribeSchedule = null;
+  var doctorScheduleData = null;
+  var unsubscribeDoctorSchedule = null;
 
   // ── DOM ──
   var calendarDays = document.getElementById('calendar-days');
@@ -62,7 +66,7 @@
   var summaryEl = document.getElementById('booking-summary');
   var messageEl = document.getElementById('booking-message');
   var offlineNotice = document.getElementById('offline-notice');
-  var serviceSelect = document.getElementById('field-service');
+  var servicePickerSection = document.getElementById('service-picker-section');
   var doctorGrid = document.getElementById('doctor-grid');
   var calendarSection = document.querySelector('.calendar');
 
@@ -91,22 +95,50 @@
       .replace(/'/g, '&#39;');
   }
 
+  // ── PHONE VALIDATION ──
+  var MOBILE_PREFIXES = ['45','50','51','53','57','60','66','69','72','73','78','79','88'];
+
+  function normalizePhone(raw) {
+    var s = String(raw || '').replace(/[\s\-().]/g, '');
+    if (s.charAt(0) === '+') s = s.slice(1);
+    if (s.startsWith('48') && s.length === 11) s = s.slice(2);
+    else if (s.charAt(0) === '0') s = s.slice(1);
+    return s;
+  }
+
+  function isValidPolishMobile(raw) {
+    var num = normalizePhone(raw);
+    return num.length === 9 && MOBILE_PREFIXES.indexOf(num.slice(0, 2)) !== -1;
+  }
+
   // ── INIT ──
   function init() {
     var now = new Date();
     currentMonth = now.getMonth();
     currentYear = now.getFullYear();
 
-    // Pre-select service from URL param
+    // Store URL service param — auto-applied after doctor is chosen
     var params = new URLSearchParams(window.location.search);
-    var svc = params.get('service');
-    if (svc && serviceSelect) {
-      serviceSelect.value = svc;
-    }
+    urlService = params.get('service');
 
     btnPrev.addEventListener('click', function() { changeMonth(-1); });
     btnNext.addEventListener('click', function() { changeMonth(1); });
     bookingForm.addEventListener('submit', handleSubmit);
+
+    var phoneField = document.getElementById('field-phone');
+    if (phoneField) {
+      phoneField.addEventListener('input', function() {
+        var err = document.getElementById('phone-error');
+        if (err) err.classList.remove('visible');
+      });
+    }
+
+    // Wire service picker cards
+    if (servicePickerSection) {
+      servicePickerSection.querySelectorAll('.doctor-card').forEach(function(card) {
+        card.addEventListener('click', function() { selectService(this.dataset.service, this); });
+      });
+    }
 
     if (!navigator.onLine) {
       offlineNotice.classList.add('visible');
@@ -163,13 +195,50 @@
     selectedDoctor = doctor;
     selectedDate = null;
     selectedTime = null;
+    selectedService = null;
     takenSlots = {};
     doctorGrid.querySelectorAll('.doctor-card').forEach(function(b) { b.classList.remove('selected'); });
+    btn.classList.add('selected');
+    if (calendarSection) calendarSection.style.display = 'none';
+    timeSlotsSection.classList.remove('visible');
+    formSection.classList.remove('visible');
+    messageEl.classList.remove('visible');
+    if (servicePickerSection) {
+      servicePickerSection.style.display = '';
+      servicePickerSection.querySelectorAll('.doctor-card').forEach(function(c) { c.classList.remove('selected'); });
+    }
+    // Set up per-doctor schedule listener
+    if (unsubscribeDoctorSchedule) { unsubscribeDoctorSchedule(); unsubscribeDoctorSchedule = null; }
+    doctorScheduleData = null;
+    if (window.PawsomeDB) {
+      unsubscribeDoctorSchedule = window.PawsomeDB.collection('doctorSchedules').doc(doctor.id)
+        .onSnapshot(function(doc) {
+          doctorScheduleData = doc.exists ? doc.data() : null;
+          if (selectedService && calendarSection && calendarSection.style.display !== 'none') {
+            loadMonthData();
+          }
+        }, function() { doctorScheduleData = null; });
+    }
+
+    // Auto-apply URL service param once
+    if (urlService && servicePickerSection) {
+      var match = servicePickerSection.querySelector('[data-service="' + urlService + '"]');
+      urlService = null;
+      if (match) { selectService(match.dataset.service, match); return; }
+    }
+  }
+
+  function selectService(serviceKey, btn) {
+    selectedService = serviceKey;
+    selectedDate = null;
+    selectedTime = null;
+    if (servicePickerSection) {
+      servicePickerSection.querySelectorAll('.doctor-card').forEach(function(c) { c.classList.remove('selected'); });
+    }
     btn.classList.add('selected');
     if (calendarSection) calendarSection.style.display = '';
     timeSlotsSection.classList.remove('visible');
     formSection.classList.remove('visible');
-    messageEl.classList.remove('visible');
     loadMonthData();
   }
 
@@ -306,7 +375,7 @@
       var override = scheduleOverrides[dateStr];
       var isClosed = override && override.closed;
 
-      var totalSlots = generateTimeSlots(date.getDay(), override).length;
+      var totalSlots = generateTimeSlots(date.getDay(), override, dateStr).length;
       var taken = (takenSlots[dateStr] || []).length;
       var availableSlots = totalSlots - taken;
 
@@ -355,14 +424,57 @@
   }
 
   // ── GENERATE TIME SLOTS ──
-  function generateTimeSlots(dayOfWeek, override) {
+  function generateTimeSlots(dayOfWeek, override, dateStr) {
     if (override && override.closed) return [];
 
-    var hours = override
-      ? { open: override.openTime || CLINIC_HOURS[dayOfWeek].open, close: override.closeTime || CLINIC_HOURS[dayOfWeek].close }
-      : CLINIC_HOURS[dayOfWeek];
+    // Resolve effective day config: per-day override > defaultWeek > weeklyHours (backward compat)
+    var doctorDay = null;
+    if (doctorScheduleData) {
+      var dow = String(dayOfWeek);
+      doctorDay = (doctorScheduleData.days && dateStr && doctorScheduleData.days[dateStr]) ||
+                  (doctorScheduleData.defaultWeek && doctorScheduleData.defaultWeek[dow]) ||
+                  (doctorScheduleData.weeklyHours && doctorScheduleData.weeklyHours[dow]);
+      // Period check (universal): outside valid period → fall back to override/CLINIC_HOURS
+      if (dateStr) {
+        if (doctorScheduleData.validFrom && dateStr < doctorScheduleData.validFrom) doctorDay = null;
+        if (doctorScheduleData.validUntil && dateStr > doctorScheduleData.validUntil) doctorDay = null;
+      }
+    }
 
-    var blocked = (override && override.blockedSlots) || [];
+    if (doctorDay && !doctorDay.active) return [];
+
+    var hours;
+    if (doctorDay && doctorDay.active) {
+      hours = { open: doctorDay.start, close: doctorDay.end };
+    } else if (override) {
+      hours = { open: override.openTime || CLINIC_HOURS[dayOfWeek].open, close: override.closeTime || CLINIC_HOURS[dayOfWeek].close };
+    } else {
+      hours = CLINIC_HOURS[dayOfWeek];
+    }
+    if (!hours) return [];
+
+    var blocked = (override && override.blockedSlots) ? override.blockedSlots.slice() : [];
+
+    // Expand pauses into blocked 10-min slots
+    var pauses = (doctorDay && doctorDay.pauses) || [];
+    pauses.forEach(function(p) {
+      var ps = timeToMins(p.start), pe = timeToMins(p.end);
+      for (var m = ps; m < pe; m += SLOT_DURATION) {
+        blocked.push(String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'));
+      }
+    });
+
+    // Backward compat: busyBlocks
+    if (doctorScheduleData && doctorScheduleData.busyBlocks && dateStr) {
+      doctorScheduleData.busyBlocks.forEach(function(bb) {
+        if (bb.date !== dateStr) return;
+        var bStart = timeToMins(bb.startTime), bEnd = timeToMins(bb.endTime);
+        for (var m = bStart; m < bEnd; m += SLOT_DURATION) {
+          blocked.push(String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'));
+        }
+      });
+    }
+
     var slots = [];
     var startParts = hours.open.split(':');
     var endParts = hours.close.split(':');
@@ -373,9 +485,7 @@
       var hh = String(Math.floor(mins / 60)).padStart(2, '0');
       var mm = String(mins % 60).padStart(2, '0');
       var timeStr = hh + ':' + mm;
-      if (!blocked.includes(timeStr)) {
-        slots.push(timeStr);
-      }
+      if (!blocked.includes(timeStr)) slots.push(timeStr);
       mins += SLOT_DURATION;
     }
     return slots;
@@ -384,7 +494,7 @@
   // ── RENDER TIME SLOTS ──
   function renderTimeSlots(dateStr, dayOfWeek) {
     var override = scheduleOverrides[dateStr];
-    var slots = generateTimeSlots(dayOfWeek, override);
+    var slots = generateTimeSlots(dayOfWeek, override, dateStr);
     var taken = takenSlots[dateStr] || [];
 
     var now = new Date();
@@ -394,12 +504,32 @@
     timeSlotsDate.textContent = formatDateDisplay(dateStr);
     timeSlotsGrid.innerHTML = '';
 
+    var serviceDur = SERVICE_DURATIONS[selectedService] || SLOT_DURATION;
+    var docDay = doctorScheduleData && (
+      (doctorScheduleData.days && doctorScheduleData.days[dateStr]) ||
+      (doctorScheduleData.defaultWeek && doctorScheduleData.defaultWeek[String(dayOfWeek)]) ||
+      (doctorScheduleData.weeklyHours && doctorScheduleData.weeklyHours[String(dayOfWeek)]));
+    var dayClose = (docDay && docDay.active && docDay.end) ? docDay.end
+      : (override && !override.closed ? (override.closeTime || CLINIC_HOURS[dayOfWeek].close)
+      : (CLINIC_HOURS[dayOfWeek] ? CLINIC_HOURS[dayOfWeek].close : '20:00'));
+    var closeMin = timeToMins(dayClose);
+
     // Group available slots by hour
     var groups = {};
     var groupOrder = [];
     slots.forEach(function(time) {
       var slotMins = timeToMins(time);
-      if (taken.includes(time) || (dateStr === todayStr && slotMins <= currentMinutes)) return;
+      if (dateStr === todayStr && slotMins <= currentMinutes) return;
+      // Whole service duration must fit within clinic hours
+      if (slotMins + serviceDur > closeMin) return;
+      // All 10-min intervals within service duration must be free
+      var blocked = false;
+      for (var m = slotMins; m < slotMins + serviceDur; m += SLOT_DURATION) {
+        var hh = String(Math.floor(m / 60)).padStart(2, '0');
+        var mm = String(m % 60).padStart(2, '0');
+        if (taken.includes(hh + ':' + mm)) { blocked = true; break; }
+      }
+      if (blocked) return;
       var hour = time.split(':')[0];
       if (!groups[hour]) { groups[hour] = []; groupOrder.push(hour); }
       groups[hour].push(time);
@@ -455,7 +585,7 @@
   // ── UPDATE SUMMARY ──
   function updateSummary() {
     if (!selectedDate || !selectedTime) return;
-    var svc = serviceSelect.value;
+    var svc = selectedService || '';
     var svcName = SERVICES[svc] || '';
     summaryEl.textContent = '';
     var html =
@@ -478,15 +608,28 @@
     var db = window.PawsomeDB;
     if (!db || !selectedDate || !selectedTime || !selectedDoctor) return;
 
-    var submitBtn = bookingForm.querySelector('.btn-submit');
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Rezerwuję...';
-
     var patientName = document.getElementById('field-name').value.trim();
     var petName = document.getElementById('field-pet').value.trim();
     var phone = document.getElementById('field-phone').value.trim();
     var email = document.getElementById('field-email').value.trim();
-    var service = serviceSelect.value;
+    var service = selectedService || '';
+    var commentEl = document.getElementById('field-comment');
+    var comment = commentEl ? commentEl.value.trim() : '';
+
+    var phoneErrorEl = document.getElementById('phone-error');
+    if (phoneErrorEl) phoneErrorEl.classList.remove('visible');
+    if (!isValidPolishMobile(phone)) {
+      if (phoneErrorEl) {
+        phoneErrorEl.textContent = 'Podaj polski numer komórkowy (np. 501 234 567)';
+        phoneErrorEl.classList.add('visible');
+      }
+      return;
+    }
+    phone = normalizePhone(phone);
+
+    var submitBtn = bookingForm.querySelector('.btn-submit');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Rezerwuję...';
 
     var capturedDate = selectedDate;
     var capturedTime = selectedTime;
@@ -537,7 +680,8 @@
             status: 'pending',
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
             doctorId: capturedDoctorId,
-            doctorName: capturedDoctorName
+            doctorName: capturedDoctorName,
+            comment: comment
           });
         });
     })
@@ -629,7 +773,7 @@
 
           if (override && override.closed) continue;
 
-          var allSlots = generateTimeSlots(checkDate.getDay(), override);
+          var allSlots = generateTimeSlots(checkDate.getDay(), override, dateStr);
 
           for (var j = 0; j < allSlots.length; j++) {
             var time = allSlots[j];
@@ -658,11 +802,6 @@
       });
     }
   };
-
-  // Listen for service select changes to update summary
-  if (serviceSelect) {
-    serviceSelect.addEventListener('change', updateSummary);
-  }
 
   // Start only on the booking page
   if (calendarDays) {

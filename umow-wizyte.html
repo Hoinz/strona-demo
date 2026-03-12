@@ -49,6 +49,37 @@
     </div>
   </div>
 
+  <!-- Service Selector -->
+  <div class="doctor-selector" id="service-picker-section" style="display:none">
+    <h3>Wybierz rodzaj usługi</h3>
+    <div class="doctor-grid">
+      <button type="button" class="doctor-card" data-service="badania-profilaktyczne">
+        <div class="doctor-card-name">Badania profilaktyczne</div>
+        <div class="doctor-card-specialty">20 min</div>
+      </button>
+      <button type="button" class="doctor-card" data-service="szczepienia">
+        <div class="doctor-card-name">Szczepienia</div>
+        <div class="doctor-card-specialty">20 min</div>
+      </button>
+      <button type="button" class="doctor-card" data-service="stomatologia">
+        <div class="doctor-card-name">Stomatologia</div>
+        <div class="doctor-card-specialty">60 min</div>
+      </button>
+      <button type="button" class="doctor-card" data-service="chirurgia">
+        <div class="doctor-card-name">Chirurgia</div>
+        <div class="doctor-card-specialty">90 min</div>
+      </button>
+      <button type="button" class="doctor-card" data-service="diagnostyka">
+        <div class="doctor-card-name">Diagnostyka</div>
+        <div class="doctor-card-specialty">30 min</div>
+      </button>
+      <button type="button" class="doctor-card" data-service="plany-zywieniowe">
+        <div class="doctor-card-name">Plany żywieniowe</div>
+        <div class="doctor-card-specialty">30 min</div>
+      </button>
+    </div>
+  </div>
+
   <!-- Calendar -->
   <div class="calendar">
     <div class="calendar-header">
@@ -86,7 +117,8 @@
       <div class="form-row">
         <div class="form-group">
           <label for="field-phone">Telefon</label>
-          <input type="tel" id="field-phone" required placeholder="+48 123 456 789">
+          <input type="tel" id="field-phone" required placeholder="501 234 567">
+          <div class="field-error" id="phone-error"></div>
         </div>
         <div class="form-group">
           <label for="field-email">Email</label>
@@ -94,16 +126,8 @@
         </div>
       </div>
       <div class="form-group">
-        <label for="field-service">Rodzaj usługi</label>
-        <select id="field-service" required>
-          <option value="">— Wybierz usługę —</option>
-          <option value="badania-profilaktyczne">Badania profilaktyczne</option>
-          <option value="szczepienia">Szczepienia</option>
-          <option value="stomatologia">Stomatologia</option>
-          <option value="chirurgia">Chirurgia</option>
-          <option value="diagnostyka">Diagnostyka</option>
-          <option value="plany-zywieniowe">Plany żywieniowe</option>
-        </select>
+        <label for="field-comment">Dodatkowe informacje <span class="optional-label">(opcjonalne)</span></label>
+        <textarea id="field-comment" placeholder="Np. objawy, uwagi, preferencje dotyczące wizyty..." rows="3"></textarea>
       </div>
       <button type="submit" class="btn-submit">Zarezerwuj wizytę</button>
     </form>
