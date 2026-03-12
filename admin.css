@@ -260,6 +260,22 @@
 .btn-accept:hover {
   background: var(--charcoal);
 }
+.btn-accept-change-time {
+  background: transparent;
+  color: var(--deep-olive);
+  border: 1.5px solid var(--deep-olive);
+  padding: 0.6rem 1.2rem;
+  border-radius: 50px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-family: 'DM Sans', sans-serif;
+}
+.btn-accept-change-time:hover {
+  background: var(--deep-olive);
+  color: var(--cream);
+}
 .btn-reject {
   background: transparent;
   color: #c62828;
@@ -382,7 +398,7 @@
   .booking-actions {
     width: 100%;
   }
-  .btn-accept, .btn-reject {
+  .btn-accept, .btn-accept-change-time, .btn-reject {
     flex: 1;
     text-align: center;
     justify-content: center;
