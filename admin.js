@@ -169,6 +169,7 @@
     bookingsList.innerHTML = bookings.map(function(b) {
       var statusLabel = { pending: 'Oczekuje', accepted: 'Potwierdzona', rejected: 'Odrzucona' }[b.status] || b.status;
       var showActions = b.status === 'pending';
+      var durLabel = b.duration ? (b.duration + ' min') : (getServiceDuration(b.service) + ' min');
 
       return '<div class="booking-card status-' + escapeAttr(b.status) + '">' +
         '<div class="booking-info">' +
@@ -176,6 +177,7 @@
           '<h3>' + escapeHtml(b.patientName) + ' — ' + escapeHtml(b.petName) + '</h3>' +
           '<div class="booking-meta">' +
             '<span>🕐 ' + escapeHtml(b.time) + '</span>' +
+            '<span>⏱ ' + escapeHtml(durLabel) + '</span>' +
             '<span>📞 ' + escapeHtml(b.phone) + '</span>' +
             '<span>✉️ ' + escapeHtml(b.email) + '</span>' +
             '<span>🩺 ' + escapeHtml(getServiceName(b.service)) + '</span>' +
@@ -184,7 +186,13 @@
         '</div>' +
         (showActions ?
           '<div class="booking-actions">' +
-            '<button class="btn-accept" data-id="' + escapeAttr(b.id) + '">Potwierdź</button>' +
+            '<button class="btn-accept"' +
+              ' data-id="' + escapeAttr(b.id) + '"' +
+              ' data-slotid="' + escapeAttr(b.slotId || b.id) + '"' +
+              ' data-service="' + escapeAttr(b.service || '') + '"' +
+              ' data-duration="' + escapeAttr(String(b.duration || '')) + '">' +
+              'Potwierdź' +
+            '</button>' +
             '<button class="btn-reject" data-id="' + escapeAttr(b.id) + '">Odrzuć</button>' +
           '</div>' : '') +
       '</div>';
@@ -192,7 +200,15 @@
 
     // Attach event listeners instead of inline onclick
     bookingsList.querySelectorAll('.btn-accept').forEach(function(btn) {
-      btn.addEventListener('click', function() { acceptBooking(this.dataset.id); });
+      btn.addEventListener('click', function() {
+        showDurationInput(
+          this.dataset.id,
+          this.dataset.slotid,
+          this.dataset.service,
+          parseInt(this.dataset.duration) || 0,
+          this.closest('.booking-actions')
+        );
+      });
     });
     bookingsList.querySelectorAll('.btn-reject').forEach(function(btn) {
       btn.addEventListener('click', function() { rejectBooking(this.dataset.id); });
@@ -258,9 +274,32 @@
   }
 
   // ── ACTIONS ──
-  function acceptBooking(id) {
+  function showDurationInput(id, slotId, service, currentDuration, actionsEl) {
+    var defaultDur = getServiceDuration(service) || currentDuration || 10;
+    actionsEl.innerHTML =
+      '<div class="duration-confirm">' +
+        '<label>Czas (min):</label>' +
+        '<input type="number" class="duration-input" value="' + defaultDur + '" min="10" max="240" step="10">' +
+        '<button class="btn-confirm-accept">Zatwierdź</button>' +
+        '<button class="btn-cancel-accept">Anuluj</button>' +
+      '</div>';
+    actionsEl.querySelector('.btn-confirm-accept').addEventListener('click', function() {
+      var dur = parseInt(actionsEl.querySelector('.duration-input').value) || defaultDur;
+      confirmAccept(id, slotId, dur);
+    });
+    actionsEl.querySelector('.btn-cancel-accept').addEventListener('click', function() {
+      loadBookings();
+    });
+  }
+
+  function confirmAccept(id, slotId, duration) {
     var db = window.PawsomeDB;
-    db.collection('appointments').doc(id).update({ status: 'accepted' });
+    var batch = db.batch();
+    batch.update(db.collection('appointments').doc(id), { status: 'accepted', duration: duration });
+    if (slotId) {
+      batch.update(db.collection('slots').doc(slotId), { duration: duration });
+    }
+    batch.commit();
   }
 
   function rejectBooking(id) {
@@ -277,6 +316,18 @@
   }
 
   // ── HELPERS ──
+  function getServiceDuration(service) {
+    var durations = (window.PawsomeBooking && window.PawsomeBooking.SERVICE_DURATIONS) || {
+      'badania-profilaktyczne': 20,
+      'szczepienia': 20,
+      'stomatologia': 60,
+      'chirurgia': 90,
+      'diagnostyka': 30,
+      'plany-zywieniowe': 30
+    };
+    return durations[service] || 10;
+  }
+
   function getServiceName(slug) {
     // Use shared SERVICES if booking.js is loaded, otherwise fallback
     var services = (window.PawsomeBooking && window.PawsomeBooking.SERVICES) || {

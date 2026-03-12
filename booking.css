@@ -156,9 +156,6 @@
 .time-slots-group:last-child {
   border-bottom: none;
 }
-.time-slots-group.all-taken {
-  opacity: 0.35;
-}
 .time-slots-hour {
   font-weight: 700;
   font-size: 0.8rem;
@@ -184,7 +181,7 @@
   transition: all 0.25s ease;
   font-family: 'DM Sans', sans-serif;
 }
-.time-slot:hover:not(.taken) {
+.time-slot:hover {
   background: var(--blush);
   transform: translateY(-1px);
 }
@@ -193,13 +190,10 @@
   color: var(--cream);
   border-color: var(--deep-olive);
 }
-.time-slot.taken {
-  background: #f0f0f0;
-  color: #bbb;
-  border-color: #e8e8e8;
-  cursor: not-allowed;
-  text-decoration: line-through;
-  font-size: 0.75rem;
+.no-slots {
+  color: #aaa;
+  font-size: 0.9rem;
+  padding: 0.25rem 0;
 }
 
 /* ── BOOKING FORM ── */

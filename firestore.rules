@@ -9,7 +9,7 @@ service cloud.firestore {
 
     match /slots/{slotId} {
       allow read: if true;
-      allow create: if request.resource.data.keys().hasOnly(['date', 'time', 'doctorId']);
+      allow create: if request.resource.data.keys().hasOnly(['date', 'time', 'doctorId', 'duration']);
       allow update, delete: if request.auth != null;
     }
 
@@ -18,11 +18,11 @@ service cloud.firestore {
       allow create: if request.resource.data.status == 'pending'
                     && request.resource.data.keys().hasAll([
                          'slotId','date','time','patientName','petName',
-                         'phone','email','service','status','createdAt',
+                         'phone','email','service','duration','status','createdAt',
                          'doctorId','doctorName']);
       allow update: if request.auth != null
                     && request.resource.data.diff(resource.data)
-                         .affectedKeys().hasOnly(['status', 'notes']);
+                         .affectedKeys().hasOnly(['status', 'notes', 'duration']);
       allow delete: if request.auth != null;
     }
 

@@ -23,6 +23,16 @@
     'plany-zywieniowe': 'Plany żywieniowe'
   };
 
+  // Default visit duration in minutes per service
+  var SERVICE_DURATIONS = {
+    'badania-profilaktyczne': 20,
+    'szczepienia': 20,
+    'stomatologia': 60,
+    'chirurgia': 90,
+    'diagnostyka': 30,
+    'plany-zywieniowe': 30
+  };
+
   var MONTH_NAMES = [
     'Styczeń','Luty','Marzec','Kwiecień','Maj','Czerwiec',
     'Lipiec','Sierpień','Wrzesień','Październik','Listopad','Grudzień'
@@ -62,6 +72,11 @@
   function formatDateDisplay(dateStr) {
     var parts = dateStr.split('-');
     return parts[2] + '.' + parts[1] + '.' + parts[0];
+  }
+
+  function timeToMins(time) {
+    var parts = time.split(':');
+    return parseInt(parts[0]) * 60 + parseInt(parts[1]);
   }
 
   function escapeHtml(str) {
@@ -183,8 +198,15 @@
     ]).then(function(results) {
       results[0].forEach(function(doc) {
         var d = doc.data();
-        if (!monthTaken[d.date]) monthTaken[d.date] = [];
-        monthTaken[d.date].push(d.time);
+        var duration = d.duration || SLOT_DURATION;
+        var startMins = timeToMins(d.time);
+        for (var m = startMins; m < startMins + duration; m += SLOT_DURATION) {
+          var hh = String(Math.floor(m / 60)).padStart(2, '0');
+          var mm = String(m % 60).padStart(2, '0');
+          var t = hh + ':' + mm;
+          if (!monthTaken[d.date]) monthTaken[d.date] = [];
+          if (!monthTaken[d.date].includes(t)) monthTaken[d.date].push(t);
+        }
       });
       results[1].forEach(function(doc) {
         monthOverrides[doc.id] = doc.data();
@@ -323,54 +345,51 @@
     var currentMinutes = now.getHours() * 60 + now.getMinutes();
 
     timeSlotsDate.textContent = formatDateDisplay(dateStr);
-
     timeSlotsGrid.innerHTML = '';
 
-    // Group slots by hour
+    // Group available slots by hour
     var groups = {};
     var groupOrder = [];
     slots.forEach(function(time) {
+      var slotMins = timeToMins(time);
+      if (taken.includes(time) || (dateStr === todayStr && slotMins <= currentMinutes)) return;
       var hour = time.split(':')[0];
       if (!groups[hour]) { groups[hour] = []; groupOrder.push(hour); }
       groups[hour].push(time);
     });
 
-    groupOrder.forEach(function(hour) {
-      var groupEl = document.createElement('div');
-      groupEl.className = 'time-slots-group';
+    if (groupOrder.length === 0) {
+      var msg = document.createElement('p');
+      msg.className = 'no-slots';
+      msg.textContent = 'Brak dostępnych terminów w tym dniu.';
+      timeSlotsGrid.appendChild(msg);
+    } else {
+      groupOrder.forEach(function(hour) {
+        var groupEl = document.createElement('div');
+        groupEl.className = 'time-slots-group';
 
-      var labelEl = document.createElement('div');
-      labelEl.className = 'time-slots-hour';
-      labelEl.textContent = hour + ':00';
-      groupEl.appendChild(labelEl);
+        var labelEl = document.createElement('div');
+        labelEl.className = 'time-slots-hour';
+        labelEl.textContent = hour + ':00';
+        groupEl.appendChild(labelEl);
 
-      var rowEl = document.createElement('div');
-      rowEl.className = 'time-slots-row';
+        var rowEl = document.createElement('div');
+        rowEl.className = 'time-slots-row';
 
-      var allTaken = true;
-      groups[hour].forEach(function(time) {
-        var btn = document.createElement('button');
-        btn.className = 'time-slot';
-        btn.textContent = time;
-
-        var parts = time.split(':');
-        var slotMins = parseInt(parts[0]) * 60 + parseInt(parts[1]);
-        if (taken.includes(time) || (dateStr === todayStr && slotMins <= currentMinutes)) {
-          btn.classList.add('taken');
-          btn.disabled = true;
-        } else {
-          allTaken = false;
+        groups[hour].forEach(function(time) {
+          var btn = document.createElement('button');
+          btn.className = 'time-slot';
+          btn.textContent = time;
           (function(t, b) {
             b.addEventListener('click', function() { selectTime(t, b); });
           })(time, btn);
-        }
-        rowEl.appendChild(btn);
-      });
+          rowEl.appendChild(btn);
+        });
 
-      if (allTaken) groupEl.classList.add('all-taken');
-      groupEl.appendChild(rowEl);
-      timeSlotsGrid.appendChild(groupEl);
-    });
+        groupEl.appendChild(rowEl);
+        timeSlotsGrid.appendChild(groupEl);
+      });
+    }
 
     timeSlotsSection.classList.add('visible');
   }
@@ -397,6 +416,8 @@
       ' \u00a0|\u00a0 <strong>Godzina:</strong> ' + escapeHtml(selectedTime);
     if (svcName) {
       html += ' \u00a0|\u00a0 <strong>Usługa:</strong> ' + escapeHtml(svcName);
+      var dur = SERVICE_DURATIONS[svc];
+      if (dur) html += ' <span style="color:#999;font-size:0.85em">(' + dur + '\u00a0min)</span>';
     }
     if (selectedDoctor) {
       html += ' \u00a0|\u00a0 <strong>Lekarz:</strong> ' + escapeHtml(selectedDoctor.name);
@@ -424,29 +445,37 @@
     var capturedTime = selectedTime;
     var capturedDoctorId = selectedDoctor.id;
     var capturedDoctorName = selectedDoctor.name;
+    var capturedDuration = SERVICE_DURATIONS[service] || SLOT_DURATION;
 
     // Use a transaction to prevent double-booking
     var slotRef = db.collection('slots').doc();
     var slotId = slotRef.id;
 
     db.runTransaction(function(transaction) {
-      // Check if any slot exists for this date+time+doctor
+      // Fetch all slots for this doctor/date to check for overlap
       return db.collection('slots')
         .where('date', '==', capturedDate)
-        .where('time', '==', capturedTime)
         .where('doctorId', '==', capturedDoctorId)
         .get()
         .then(function(snapshot) {
-          if (!snapshot.empty) {
-            throw { code: 'slot-taken' };
-          }
+          var newStart = timeToMins(capturedTime);
+          var newEnd = newStart + capturedDuration;
+          snapshot.forEach(function(doc) {
+            var d = doc.data();
+            var existStart = timeToMins(d.time);
+            var existEnd = existStart + (d.duration || SLOT_DURATION);
+            if (newStart < existEnd && newEnd > existStart) {
+              throw { code: 'slot-taken' };
+            }
+          });
 
           // Create both docs in the transaction
           var appointmentRef = db.collection('appointments').doc(slotId);
           transaction.set(slotRef, {
             date: capturedDate,
             time: capturedTime,
-            doctorId: capturedDoctorId
+            doctorId: capturedDoctorId,
+            duration: capturedDuration
           });
           transaction.set(appointmentRef, {
             slotId: slotId,
@@ -457,6 +486,7 @@
             phone: phone,
             email: email,
             service: service,
+            duration: capturedDuration,
             status: 'pending',
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
             doctorId: capturedDoctorId,
@@ -466,8 +496,14 @@
     })
     .then(function() {
       showMessage('success', 'Wizyta zarezerwowana!', 'Twoja wizyta oczekuje na potwierdzenie. Skontaktujemy się z Tobą wkrótce.');
+      // Expand local takenSlots by duration so UI stays accurate
       if (!takenSlots[capturedDate]) takenSlots[capturedDate] = [];
-      takenSlots[capturedDate].push(capturedTime);
+      var startMins = timeToMins(capturedTime);
+      for (var m = startMins; m < startMins + capturedDuration; m += SLOT_DURATION) {
+        var hh = String(Math.floor(m / 60)).padStart(2, '0');
+        var mm = String(m % 60).padStart(2, '0');
+        takenSlots[capturedDate].push(hh + ':' + mm);
+      }
     })
     .catch(function(err) {
       if (err && err.code === 'slot-taken') {
@@ -499,6 +535,7 @@
   window.PawsomeBooking = {
     CLINIC_HOURS: CLINIC_HOURS,
     SERVICES: SERVICES,
+    SERVICE_DURATIONS: SERVICE_DURATIONS,
     generateTimeSlots: generateTimeSlots,
     getNextFreeTerm: function(callback) {
       var db = window.PawsomeDB;
