@@ -1382,7 +1382,7 @@
   // ── WEEK SCHEDULE MODAL ──
   function getWeekDates() {
     var today = new Date();
-    var dow = today.getDay(); // 0=Sun
+    var dow = today.getDay();
     var diffToMon = (dow === 0) ? -6 : 1 - dow;
     var monday = new Date(today);
     monday.setDate(today.getDate() + diffToMon);
@@ -1411,11 +1411,12 @@
     return mDay + ' ' + mMonth + ' \u2013 ' + sDay + ' ' + sMonth + ' ' + sYear;
   }
 
-  function buildWeekGrid(weekDates, apptsByDate, sched, todayStr) {
+  // filterDoctorId: null = all doctors, string = single doctor
+  function buildWeekGrid(weekDates, apptsByDate, filterDoctorId, todayStr, doctorNameMap) {
     var dayNames = ['Poniedziałek','Wtorek','Środa','Czwartek','Piątek','Sobota','Niedziela'];
-    var dowForDate = [1,2,3,4,5,6,0]; // Mon=1..Sun=0 (JS getDay)
+    var dowForDate = [1,2,3,4,5,6,0]; // Mon..Sun → JS getDay values
 
-    function getDayConfigLocal(dateStr, jsdow) {
+    function getDayConfig(sched, dateStr, jsdow) {
       if (!sched) return null;
       if (sched.validFrom && dateStr < sched.validFrom) return null;
       if (sched.validUntil && dateStr > sched.validUntil) return null;
@@ -1425,7 +1426,6 @@
     }
 
     function apptCountLabel(n) {
-      if (n === 0) return '';
       if (n === 1) return '1 wizyta';
       if (n <= 4) return n + ' wizyty';
       return n + ' wizyt';
@@ -1437,24 +1437,25 @@
 
     weekDates.forEach(function(dateStr, idx) {
       var jsdow = dowForDate[idx];
-      var cfg = getDayConfigLocal(dateStr, jsdow);
-      var isActive = cfg && cfg.active;
-      var isOff = cfg && !cfg.active;
       var isToday = dateStr === todayStr;
-      var dayAppts = apptsByDate[dateStr] || [];
+      var dayAppts = (apptsByDate[dateStr] || []).filter(function(a) {
+        return a.status === 'accepted' || a.status === 'pending';
+      }).sort(function(a, b) {
+        return timeToMins(a.time) - timeToMins(b.time);
+      });
+
+      // For single-doctor mode: pull schedule config + busy blocks
+      var sched = filterDoctorId ? doctorScheduleCache[filterDoctorId] : null;
+      var cfg = filterDoctorId ? getDayConfig(sched, dateStr, jsdow) : null;
+      var isActive = cfg && cfg.active;
+      var isOff = filterDoctorId && cfg && !cfg.active;
       var busyBlocks = (sched && sched.busyBlocks)
         ? sched.busyBlocks.filter(function(bb) { return bb.date === dateStr; })
         : [];
 
-      var accepted = dayAppts.filter(function(a) { return a.status === 'accepted'; });
-      var pending = dayAppts.filter(function(a) { return a.status === 'pending'; });
-      var allAppts = accepted.concat(pending).sort(function(a, b) {
-        return timeToMins(a.time) - timeToMins(b.time);
-      });
-
       var cardCls = 'week-day-card';
       if (isToday) cardCls += ' week-day-today';
-      else if (isOff || (!cfg && !isActive)) cardCls += ' week-day-off';
+      else if (filterDoctorId && isOff) cardCls += ' week-day-off';
 
       var dateParts = dateStr.split('-');
       var dateLabel = parseInt(dateParts[2], 10) + '.' + parseInt(dateParts[1], 10) + '.';
@@ -1466,29 +1467,33 @@
       if (isToday) html += '<span class="week-day-today-badge">Dziś</span>';
       html += '</div>';
 
-      if (isActive) {
-        html += '<div class="week-day-hours">' + escapeHtml(cfg.start) + '\u2013' + escapeHtml(cfg.end) + '</div>';
-        (cfg.pauses || []).forEach(function(p) {
-          html += '<div class="week-day-pause">Przerwa: ' + escapeHtml(p.start) + '\u2013' + escapeHtml(p.end) + '</div>';
+      // Schedule info — only in single-doctor mode
+      if (filterDoctorId) {
+        if (isActive) {
+          html += '<div class="week-day-hours">' + escapeHtml(cfg.start) + '\u2013' + escapeHtml(cfg.end) + '</div>';
+          (cfg.pauses || []).forEach(function(p) {
+            html += '<div class="week-day-pause">Przerwa: ' + escapeHtml(p.start) + '\u2013' + escapeHtml(p.end) + '</div>';
+          });
+        } else if (isOff) {
+          html += '<div class="week-day-off-label">Dzień wolny</div>';
+        }
+        busyBlocks.forEach(function(bb) {
+          html += '<div class="week-day-busy">Blokada: ' + escapeHtml(bb.startTime) + '\u2013' + escapeHtml(bb.endTime) + '</div>';
         });
-      } else if (isOff) {
-        html += '<div class="week-day-off-label">Dzień wolny</div>';
-      } else {
-        html += '<div class="week-day-off-label">Brak grafiku</div>';
       }
 
-      busyBlocks.forEach(function(bb) {
-        html += '<div class="week-day-busy">\uD83D\uDEAB Blokada: ' + escapeHtml(bb.startTime) + '\u2013' + escapeHtml(bb.endTime) + '</div>';
-      });
-
-      if (allAppts.length > 0) {
-        html += '<div class="week-appt-count">' + escapeHtml(apptCountLabel(allAppts.length)) + '</div>';
+      if (dayAppts.length > 0) {
+        html += '<div class="week-appt-count">' + escapeHtml(apptCountLabel(dayAppts.length)) + '</div>';
         html += '<div class="week-appt-list">';
-        allAppts.forEach(function(a) {
+        dayAppts.forEach(function(a) {
           var endTime = minsToTime(timeToMins(a.time) + (a.duration || 20));
           var cls = 'week-appt-item ' + (a.status === 'accepted' ? 'week-appt-accepted' : 'week-appt-pending');
           html += '<div class="' + cls + '">';
           html += '<div class="week-appt-time">' + escapeHtml(a.time) + '\u2013' + escapeHtml(endTime) + '</div>';
+          if (!filterDoctorId && doctorNameMap) {
+            var dname = doctorNameMap[a.doctorId] || '';
+            if (dname) html += '<div class="week-appt-doctor">' + escapeHtml(dname) + '</div>';
+          }
           html += '<div class="week-appt-patient">' + escapeHtml(a.patientName || '') + ' / ' + escapeHtml(a.petName || '') + '</div>';
           html += '<div class="week-appt-service">' + escapeHtml(getServiceName(a.service)) + '</div>';
           html += '</div>';
@@ -1503,7 +1508,7 @@
     html += '<div class="week-sched-legend">';
     html += '<span class="week-leg-item week-leg-accepted">Potwierdzona</span>';
     html += '<span class="week-leg-item week-leg-pending">Oczekująca</span>';
-    html += '<span class="week-leg-item week-leg-busy">Blokada</span>';
+    if (filterDoctorId) html += '<span class="week-leg-item week-leg-busy">Blokada</span>';
     html += '</div>';
     return html;
   }
@@ -1515,12 +1520,17 @@
     var weekDates = getWeekDates();
     var todayStr = formatDateInput(new Date());
     var myId = currentUser.uid;
-    var selectedDoctorId = myId;
+    var selectedDoctorId = 'all'; // default: all doctors
 
     var doctorList = allDoctors.length > 0 ? allDoctors : [{ id: myId, name: doctorName || 'Mój grafik' }];
-    var doctorOptions = doctorList.map(function(d) {
-      return '<option value="' + escapeAttr(d.id) + '"' + (d.id === myId ? ' selected' : '') + '>' + escapeHtml(d.name) + '</option>';
-    }).join('');
+    var doctorOptions = '<option value="all" selected>Wszyscy lekarze</option>' +
+      doctorList.map(function(d) {
+        return '<option value="' + escapeAttr(d.id) + '">' + escapeHtml(d.name) + '</option>';
+      }).join('');
+
+    // Build name lookup map
+    var doctorNameMap = {};
+    doctorList.forEach(function(d) { doctorNameMap[d.id] = d.name; });
 
     var overlay = document.createElement('div');
     overlay.id = 'week-sched-modal-overlay';
@@ -1551,38 +1561,28 @@
       var contentEl = overlay.querySelector('#week-sched-content');
       contentEl.innerHTML = '<div class="week-sched-loading">Ładowanie wizyt\u2026</div>';
 
-      function renderWithSched(sched) {
-        window.PawsomeDB.collection('appointments')
-          .where('doctorId', '==', doctorId)
-          .where('date', '>=', weekDates[0])
-          .where('date', '<=', weekDates[6])
-          .get()
-          .then(function(snap) {
-            var apptsByDate = {};
-            snap.forEach(function(doc) {
-              var a = doc.data();
-              if (a.status !== 'accepted' && a.status !== 'pending') return;
-              if (!apptsByDate[a.date]) apptsByDate[a.date] = [];
-              apptsByDate[a.date].push(a);
-            });
-            contentEl.innerHTML = buildWeekGrid(weekDates, apptsByDate, sched, todayStr);
-          })
-          .catch(function() {
-            contentEl.innerHTML = '<div class="week-sched-loading">Błąd ładowania wizyt.</div>';
+      // Always query by date range only — avoids composite index requirement.
+      // Filter by doctor client-side when a specific doctor is selected.
+      window.PawsomeDB.collection('appointments')
+        .where('date', '>=', weekDates[0])
+        .where('date', '<=', weekDates[6])
+        .get()
+        .then(function(snap) {
+          var apptsByDate = {};
+          snap.forEach(function(doc) {
+            var a = doc.data();
+            if (a.status !== 'accepted' && a.status !== 'pending') return;
+            if (doctorId !== 'all' && a.doctorId !== doctorId) return;
+            if (!apptsByDate[a.date]) apptsByDate[a.date] = [];
+            apptsByDate[a.date].push(a);
           });
-      }
-
-      if (doctorScheduleCache[doctorId]) {
-        renderWithSched(doctorScheduleCache[doctorId]);
-      } else {
-        window.PawsomeDB.collection('doctorSchedules').doc(doctorId).get()
-          .then(function(doc) {
-            var sched = doc.exists ? doc.data() : null;
-            if (sched) doctorScheduleCache[doctorId] = sched;
-            renderWithSched(sched);
-          })
-          .catch(function() { renderWithSched(null); });
-      }
+          var filterArg = doctorId !== 'all' ? doctorId : null;
+          contentEl.innerHTML = buildWeekGrid(weekDates, apptsByDate, filterArg, todayStr, doctorNameMap);
+        })
+        .catch(function(err) {
+          console.error('Week schedule fetch error:', err);
+          contentEl.innerHTML = '<div class="week-sched-loading">Błąd ładowania wizyt.</div>';
+        });
     }
 
     overlay.querySelector('#week-sched-doctor').addEventListener('change', function() {

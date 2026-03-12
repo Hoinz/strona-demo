@@ -1413,6 +1413,13 @@
   color: var(--deep-olive);
 }
 
+.week-appt-doctor {
+  font-weight: 600;
+  color: var(--deep-olive);
+  font-size: 0.62rem;
+  margin-top: 0.05rem;
+}
+
 .week-appt-patient {
   color: #555;
   margin-top: 0.05rem;
