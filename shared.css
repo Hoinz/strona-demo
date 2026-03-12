@@ -21,7 +21,7 @@ h1,h2,h3,h4{font-family:'Playfair Display',serif;font-weight:400}
 
 /* ── NAVBAR ── */
 nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:1.2rem 3rem;display:flex;justify-content:space-between;align-items:center;background:rgba(250,246,240,.85);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid rgba(139,111,78,.08);transition:all .4s ease}
-nav.scrolled{padding:.8rem 3rem;box-shadow:0 4px 30px rgba(0,0,0,.04)}
+nav.scrolled{box-shadow:0 4px 30px rgba(0,0,0,.04)}
 .logo{display:flex;align-items:center;gap:.6rem;text-decoration:none;color:var(--charcoal)}
 .logo-icon{width:40px;height:40px;min-width:0;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;background:var(--white);box-shadow:0 4px 12px rgba(0,0,0,.08);flex-shrink:0;transition:transform .3s ease}
 .logo-icon img{width:100%;height:100%;max-width:100%;object-fit:contain;object-position:center;display:block}

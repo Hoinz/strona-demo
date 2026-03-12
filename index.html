@@ -17,7 +17,6 @@
 <link rel="stylesheet" href="shared.css">
 <style>
   html { overflow-x: hidden; }
-  .services,.about,.team,.testimonials,.contact{content-visibility:auto;contain-intrinsic-size:auto 800px}
 
   /* ──────── HERO ──────── */
   .hero {
@@ -934,6 +933,20 @@
 </footer>
 
 <script>
+  // Fix scroll position when arriving via hash from another page
+  if (window.location.hash && window.location.hash.length > 1) {
+    var _hash = window.location.hash;
+    window.addEventListener('load', function() {
+      setTimeout(function() {
+        var target = document.querySelector(_hash);
+        if (!target) return;
+        var navEl = document.getElementById('navbar');
+        var offset = navEl ? navEl.offsetHeight : 70;
+        window.scrollTo(0, target.getBoundingClientRect().top + window.scrollY - offset);
+      }, 0);
+    });
+  }
+
   // Navbar scroll effect
   const navbar = document.getElementById('navbar');
   const hamburger = document.querySelector('.hamburger');
@@ -956,12 +969,21 @@
     hamburger.setAttribute('aria-expanded', isOpen);
   });
 
-  // Close menu on nav link click
+  // Close menu on nav link click + scroll with exact navbar offset
   navLinks.querySelectorAll('a').forEach(link => {
-    link.addEventListener('click', () => {
+    link.addEventListener('click', (e) => {
       navLinks.classList.remove('active');
       hamburger.classList.remove('active');
       hamburger.setAttribute('aria-expanded', 'false');
+      const href = link.getAttribute('href');
+      if (href && href.startsWith('#') && href.length > 1) {
+        const target = document.querySelector(href);
+        if (target) {
+          e.preventDefault();
+          const offset = navbar.getBoundingClientRect().height;
+          window.scrollTo({ top: target.getBoundingClientRect().top + window.scrollY - offset, behavior: 'smooth' });
+        }
+      }
     });
   });
 
