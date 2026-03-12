@@ -988,28 +988,37 @@
   });
 
 </script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js" defer></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js" defer></script>
-<script src="firebase-config.js" defer></script>
-<script src="booking.js" defer></script>
 <script>
-// Dynamic "next free term" badge
+// Load Firebase and update "next free term" badge after page load
 window.addEventListener('load', function() {
-  if (window.PawsomeBooking && window.PawsomeBooking.getNextFreeTerm) {
-    window.PawsomeBooking.getNextFreeTerm(function(label) {
-      if (!label) return;
-      // Update desktop badge
-      var desktopBadge = document.querySelector('.floating-badge.top .badge-text strong');
-      if (desktopBadge) desktopBadge.textContent = label;
-      // Update mobile badge
-      var mobileBadges = document.querySelectorAll('.floating-badge-mobile .badge-text strong');
-      mobileBadges.forEach(function(el) {
-        if (el.closest('.floating-badge-mobile').querySelector('.badge-icon.green')) {
-          el.textContent = label;
-        }
-      });
+  function loadScript(src, cb) {
+    var s = document.createElement('script');
+    s.src = src;
+    s.onload = cb;
+    document.head.appendChild(s);
+  }
+  function updateBadge(label) {
+    if (!label) return;
+    var desktopBadge = document.querySelector('.floating-badge.top .badge-text strong');
+    if (desktopBadge) desktopBadge.textContent = label;
+    var mobileBadges = document.querySelectorAll('.floating-badge-mobile .badge-text strong');
+    mobileBadges.forEach(function(el) {
+      if (el.closest('.floating-badge-mobile').querySelector('.badge-icon.green')) {
+        el.textContent = label;
+      }
     });
   }
+  loadScript('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js', function() {
+    loadScript('https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js', function() {
+      loadScript('firebase-config.js', function() {
+        loadScript('booking.js', function() {
+          if (window.PawsomeBooking && window.PawsomeBooking.getNextFreeTerm) {
+            window.PawsomeBooking.getNextFreeTerm(updateBadge);
+          }
+        });
+      });
+    });
+  });
 });
 </script>
 <script>if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js')</script>
