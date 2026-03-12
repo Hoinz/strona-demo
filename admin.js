@@ -108,12 +108,14 @@
         viewMode = 'mine';
         btnViewMine.classList.add('active');
         btnViewAll.classList.remove('active');
+        updatePendingTabLabel();
         loadBookings();
       });
       btnViewAll.addEventListener('click', function() {
         viewMode = 'all';
         btnViewAll.classList.add('active');
         btnViewMine.classList.remove('active');
+        updatePendingTabLabel();
         loadBookings();
       });
     }
@@ -126,6 +128,15 @@
     if (viewSchedBtn) viewSchedBtn.addEventListener('click', openViewScheduleModal);
 
     loadBookings();
+  }
+
+  // ── UPDATE PENDING TAB LABEL based on view mode ──
+  function updatePendingTabLabel() {
+    var labelEl = document.querySelector('#tab-pending .tab-label');
+    if (!labelEl) return;
+    labelEl.textContent = viewMode === 'all'
+      ? 'Wszystkie oczekujące przychodni'
+      : 'Wszystkie moje oczekujące';
   }
 
   // ── LOAD BOOKINGS (two listeners: all pending + date-specific) ──

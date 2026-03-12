@@ -353,7 +353,8 @@
 
 /* ── DOCTOR SELECTOR ── */
 .doctor-selector { background: var(--white); border-radius: 24px; padding: 2rem; box-shadow: 0 8px 40px rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.04); margin-bottom: 2rem; }
-.doctor-selector h3 { font-size: 1.2rem; margin-bottom: 1.2rem; }
+.doctor-selector h3 { font-size: 1.2rem; margin-bottom: 0.3rem; }
+.service-duration-note { font-size: 0.78rem; color: #999; margin-bottom: 1.2rem; font-style: italic; }
 .doctor-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1rem; }
 .doctor-card { border: 1.5px solid rgba(0,0,0,0.1); border-radius: 16px; padding: 1.2rem 1rem; text-align: center; cursor: pointer; background: transparent; font-family: 'DM Sans', sans-serif; color: var(--charcoal); transition: all 0.25s ease; }
 .doctor-card:hover { background: var(--blush); border-color: var(--warm-brown); transform: translateY(-2px); }
