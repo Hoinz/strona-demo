@@ -12,7 +12,7 @@
     6: { open: '08:00', close: '20:00' }, // Saturday
     0: { open: '09:00', close: '17:00' }  // Sunday
   };
-  var SLOT_DURATION = 30; // minutes
+  var SLOT_DURATION = 10; // minutes
 
   var SERVICES = {
     'badania-profilaktyczne': 'Badania profilaktyczne',
@@ -34,6 +34,8 @@
   var selectedTime = null;
   var takenSlots = {};
   var scheduleOverrides = {};
+  var selectedDoctor = null;   // { id, name, specialty }
+  var doctors = [];
 
   // ── DOM ──
   var calendarDays = document.getElementById('calendar-days');
@@ -49,6 +51,8 @@
   var messageEl = document.getElementById('booking-message');
   var offlineNotice = document.getElementById('offline-notice');
   var serviceSelect = document.getElementById('field-service');
+  var doctorGrid = document.getElementById('doctor-grid');
+  var calendarSection = document.querySelector('.calendar');
 
   // ── HELPERS ──
   function formatDate(year, month, day) {
@@ -93,7 +97,8 @@
     window.addEventListener('online', function() { offlineNotice.classList.remove('visible'); });
     window.addEventListener('offline', function() { offlineNotice.classList.add('visible'); });
 
-    loadMonthData();
+    if (calendarSection) calendarSection.style.display = 'none';
+    loadDoctors(); // calendar shown only after doctor selection
   }
 
   // ── MONTH NAVIGATION ──
@@ -104,10 +109,57 @@
     loadMonthData();
   }
 
+  // ── LOAD DOCTORS ──
+  function loadDoctors() {
+    var db = window.PawsomeDB;
+    if (!db) { doctorGrid.innerHTML = '<div class="doctor-loading">Błąd połączenia</div>'; return; }
+    db.collection('doctors').get().then(function(snapshot) {
+      doctors = [];
+      snapshot.forEach(function(doc) {
+        doctors.push({ id: doc.id, name: doc.data().name, specialty: doc.data().specialty });
+      });
+      renderDoctors();
+    }).catch(function() {
+      doctorGrid.innerHTML = '<div class="doctor-loading">Nie można załadować lekarzy</div>';
+    });
+  }
+
+  function renderDoctors() {
+    if (doctors.length === 0) {
+      doctorGrid.innerHTML = '<div class="doctor-loading">Brak dostępnych lekarzy</div>';
+      return;
+    }
+    doctorGrid.innerHTML = '';
+    doctors.forEach(function(doctor) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'doctor-card';
+      btn.innerHTML =
+        '<div class="doctor-card-name">' + escapeHtml(doctor.name) + '</div>' +
+        '<div class="doctor-card-specialty">' + escapeHtml(doctor.specialty) + '</div>';
+      btn.addEventListener('click', function() { selectDoctor(doctor, btn); });
+      doctorGrid.appendChild(btn);
+    });
+  }
+
+  function selectDoctor(doctor, btn) {
+    selectedDoctor = doctor;
+    selectedDate = null;
+    selectedTime = null;
+    takenSlots = {};
+    doctorGrid.querySelectorAll('.doctor-card').forEach(function(b) { b.classList.remove('selected'); });
+    btn.classList.add('selected');
+    if (calendarSection) calendarSection.style.display = '';
+    timeSlotsSection.classList.remove('visible');
+    formSection.classList.remove('visible');
+    messageEl.classList.remove('visible');
+    loadMonthData();
+  }
+
   // ── LOAD DATA FROM FIRESTORE ──
   function loadMonthData() {
     var db = window.PawsomeDB;
-    if (!db) { renderCalendar(); return; }
+    if (!db || !selectedDoctor) { renderCalendar(); return; }
 
     var startDate = formatDate(currentYear, currentMonth, 1);
     var lastDay = new Date(currentYear, currentMonth + 1, 0).getDate();
@@ -122,6 +174,7 @@
       db.collection('slots')
         .where('date', '>=', startDate)
         .where('date', '<=', endDate)
+        .where('doctorId', '==', selectedDoctor.id)
         .get(),
       db.collection('schedule')
         .where(firebase.firestore.FieldPath.documentId(), '>=', startDate)
@@ -320,6 +373,9 @@
     if (svcName) {
       html += ' \u00a0|\u00a0 <strong>Usługa:</strong> ' + escapeHtml(svcName);
     }
+    if (selectedDoctor) {
+      html += ' \u00a0|\u00a0 <strong>Lekarz:</strong> ' + escapeHtml(selectedDoctor.name);
+    }
     summaryEl.innerHTML = html;
   }
 
@@ -327,7 +383,7 @@
   function handleSubmit(e) {
     e.preventDefault();
     var db = window.PawsomeDB;
-    if (!db || !selectedDate || !selectedTime) return;
+    if (!db || !selectedDate || !selectedTime || !selectedDoctor) return;
 
     var submitBtn = bookingForm.querySelector('.btn-submit');
     submitBtn.disabled = true;
@@ -341,16 +397,19 @@
 
     var capturedDate = selectedDate;
     var capturedTime = selectedTime;
+    var capturedDoctorId = selectedDoctor.id;
+    var capturedDoctorName = selectedDoctor.name;
 
     // Use a transaction to prevent double-booking
     var slotRef = db.collection('slots').doc();
     var slotId = slotRef.id;
 
     db.runTransaction(function(transaction) {
-      // Check if any slot exists for this date+time
+      // Check if any slot exists for this date+time+doctor
       return db.collection('slots')
         .where('date', '==', capturedDate)
         .where('time', '==', capturedTime)
+        .where('doctorId', '==', capturedDoctorId)
         .get()
         .then(function(snapshot) {
           if (!snapshot.empty) {
@@ -361,7 +420,8 @@
           var appointmentRef = db.collection('appointments').doc(slotId);
           transaction.set(slotRef, {
             date: capturedDate,
-            time: capturedTime
+            time: capturedTime,
+            doctorId: capturedDoctorId
           });
           transaction.set(appointmentRef, {
             slotId: slotId,
@@ -373,7 +433,9 @@
             email: email,
             service: service,
             status: 'pending',
-            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            doctorId: capturedDoctorId,
+            doctorName: capturedDoctorName
           });
         });
     })
@@ -431,18 +493,22 @@
         db.collection('schedule')
           .where(firebase.firestore.FieldPath.documentId(), '>=', todayStr)
           .where(firebase.firestore.FieldPath.documentId(), '<=', futureStr)
-          .get()
+          .get(),
+        db.collection('doctors').get()
       ]).then(function(results) {
-        var taken = {};
+        // Count taken slots per date|time key across all doctors
+        var slotCounts = {};
         results[0].forEach(function(doc) {
           var d = doc.data();
-          if (!taken[d.date]) taken[d.date] = [];
-          taken[d.date].push(d.time);
+          var key = d.date + '|' + d.time;
+          slotCounts[key] = (slotCounts[key] || 0) + 1;
         });
         var overrides = {};
         results[1].forEach(function(doc) {
           overrides[doc.id] = doc.data();
         });
+        var doctorCount = results[2].size;
+        if (doctorCount === 0) { callback(null); return; }
 
         var currentMinutes = now.getHours() * 60 + now.getMinutes();
 
@@ -455,11 +521,10 @@
           if (override && override.closed) continue;
 
           var allSlots = generateTimeSlots(checkDate.getDay(), override);
-          var dateTaken = taken[dateStr] || [];
 
           for (var j = 0; j < allSlots.length; j++) {
             var time = allSlots[j];
-            if (dateTaken.includes(time)) continue;
+            if ((slotCounts[dateStr + '|' + time] || 0) >= doctorCount) continue;
             if (i === 0) {
               var parts = time.split(':');
               var slotMins = parseInt(parts[0]) * 60 + parseInt(parts[1]);

@@ -56,13 +56,21 @@
   <!-- Dashboard View -->
   <div id="admin-dashboard" class="admin-dashboard">
     <div class="admin-header">
-      <h1>Rezerwacje</h1>
+      <div>
+        <h1>Rezerwacje</h1>
+        <span class="doctor-label" id="doctor-label"></span>
+      </div>
       <button id="btn-logout" class="btn-logout">Wyloguj się</button>
     </div>
 
     <div class="admin-date-picker">
       <label for="admin-date">Data:</label>
       <input type="date" id="admin-date">
+    </div>
+
+    <div class="admin-view-toggle">
+      <button class="view-toggle-btn active" id="btn-view-mine" data-view="mine">Moje wizyty</button>
+      <button class="view-toggle-btn" id="btn-view-all" data-view="all">Wszystkie wizyty</button>
     </div>
 
     <div class="admin-tabs">

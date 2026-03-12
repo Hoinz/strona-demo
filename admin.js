@@ -16,6 +16,9 @@
   var currentFilter = 'pending';
   var unsubscribe = null;
   var dashboardInitialized = false;
+  var currentUser = null;
+  var viewMode = 'mine';   // 'mine' | 'all'
+  var doctorName = '';
 
   // ── AUTH ──
   function initAuth() {
@@ -24,20 +27,35 @@
 
     auth.onAuthStateChanged(function(user) {
       if (user) {
+        currentUser = user;
         loginView.style.display = 'none';
         dashboard.classList.add('visible');
         if (!dashboardInitialized) {
-          initDashboard();
-          dashboardInitialized = true;
+          loadDoctorInfo(user.uid, function() {
+            initDashboard();
+            dashboardInitialized = true;
+          });
         } else {
           loadBookings();
         }
       } else {
+        currentUser = null;
+        doctorName = '';
         loginView.style.display = '';
         dashboard.classList.remove('visible');
         if (unsubscribe) { unsubscribe(); unsubscribe = null; }
       }
     });
+  }
+
+  // ── LOAD DOCTOR INFO ──
+  function loadDoctorInfo(uid, callback) {
+    window.PawsomeDB.collection('doctors').doc(uid).get().then(function(doc) {
+      doctorName = doc.exists ? (doc.data().name || '') : 'Lekarz';
+      var labelEl = document.getElementById('doctor-label');
+      if (labelEl) labelEl.textContent = 'Zalogowany jako: ' + doctorName;
+      callback();
+    }).catch(function() { callback(); });
   }
 
   // ── LOGIN ──
@@ -75,6 +93,24 @@
       });
     });
 
+    // Wire view-mode toggle buttons
+    var btnViewMine = document.getElementById('btn-view-mine');
+    var btnViewAll  = document.getElementById('btn-view-all');
+    if (btnViewMine && btnViewAll) {
+      btnViewMine.addEventListener('click', function() {
+        viewMode = 'mine';
+        btnViewMine.classList.add('active');
+        btnViewAll.classList.remove('active');
+        loadBookings();
+      });
+      btnViewAll.addEventListener('click', function() {
+        viewMode = 'all';
+        btnViewAll.classList.add('active');
+        btnViewMine.classList.remove('active');
+        loadBookings();
+      });
+    }
+
     loadBookings();
   }
 
@@ -87,38 +123,40 @@
 
     var dateStr = datePicker.value;
 
-    // Single unfiltered listener for the entire day
-    unsubscribe = db.collection('appointments')
-      .where('date', '==', dateStr)
-      .onSnapshot(function(snapshot) {
-        var allBookings = [];
-        snapshot.forEach(function(doc) {
-          allBookings.push({ id: doc.id, ...doc.data() });
-        });
-        allBookings.sort(function(a, b) { return (a.time || '').localeCompare(b.time || ''); });
+    var query = db.collection('appointments').where('date', '==', dateStr);
+    if (viewMode === 'mine' && currentUser) {
+      query = query.where('doctorId', '==', currentUser.uid);
+    }
 
-        // Derive counts from in-memory data
-        var counts = { pending: 0, accepted: 0, rejected: 0, all: allBookings.length };
-        allBookings.forEach(function(b) {
-          counts[b.status] = (counts[b.status] || 0) + 1;
-        });
-        updateCountsFromData(counts);
-
-        // Filter for display
-        var filtered = currentFilter === 'all'
-          ? allBookings
-          : allBookings.filter(function(b) { return b.status === currentFilter; });
-        renderBookings(filtered);
-
-        // Render timeline from accepted bookings (no extra query)
-        var accepted = {};
-        allBookings.forEach(function(b) {
-          if (b.status === 'accepted') accepted[b.time] = b;
-        });
-        renderTimeline(dateStr, accepted);
-      }, function() {
-        bookingsList.innerHTML = '<div class="no-bookings">Błąd ładowania danych</div>';
+    unsubscribe = query.onSnapshot(function(snapshot) {
+      var allBookings = [];
+      snapshot.forEach(function(doc) {
+        allBookings.push({ id: doc.id, ...doc.data() });
       });
+      allBookings.sort(function(a, b) { return (a.time || '').localeCompare(b.time || ''); });
+
+      // Derive counts from in-memory data
+      var counts = { pending: 0, accepted: 0, rejected: 0, all: allBookings.length };
+      allBookings.forEach(function(b) {
+        counts[b.status] = (counts[b.status] || 0) + 1;
+      });
+      updateCountsFromData(counts);
+
+      // Filter for display
+      var filtered = currentFilter === 'all'
+        ? allBookings
+        : allBookings.filter(function(b) { return b.status === currentFilter; });
+      renderBookings(filtered);
+
+      // Render timeline from accepted bookings (no extra query)
+      var accepted = {};
+      allBookings.forEach(function(b) {
+        if (b.status === 'accepted') accepted[b.time] = b;
+      });
+      renderTimeline(dateStr, accepted);
+    }, function() {
+      bookingsList.innerHTML = '<div class="no-bookings">Błąd ładowania danych</div>';
+    });
   }
 
   // ── RENDER BOOKINGS ──
@@ -141,6 +179,7 @@
             '<span>📞 ' + escapeHtml(b.phone) + '</span>' +
             '<span>✉️ ' + escapeHtml(b.email) + '</span>' +
             '<span>🩺 ' + escapeHtml(getServiceName(b.service)) + '</span>' +
+            '<span>👨‍⚕️ ' + escapeHtml(b.doctorName || '') + '</span>' +
           '</div>' +
         '</div>' +
         (showActions ?
@@ -199,9 +238,9 @@
       var endParts = h.close.split(':');
       var mins = parseInt(startParts[0]) * 60 + parseInt(startParts[1]);
       var endMins = parseInt(endParts[0]) * 60 + parseInt(endParts[1]);
-      while (mins + 30 <= endMins) {
+      while (mins + 10 <= endMins) {
         slots.push(String(Math.floor(mins / 60)).padStart(2, '0') + ':' + String(mins % 60).padStart(2, '0'));
-        mins += 30;
+        mins += 10;
       }
     }
 
