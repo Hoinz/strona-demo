@@ -665,7 +665,8 @@
             '<div class="appt-form-row"><label>Telefon</label><input type="tel" name="phone" value="' + escapeAttr(booking.phone || '') + '"></div>' +
             '<div class="appt-form-row"><label>Email</label><input type="email" name="email" value="' + escapeAttr(booking.email || '') + '"></div>' +
             '<div class="appt-form-row"><label>Usługa</label><select name="service">' + serviceOptions + '</select></div>' +
-            '<div class="appt-form-row"><label>Godzina</label><input type="text" name="time" value="' + escapeAttr(booking.time || '') + '" placeholder="HH:MM" required></div>' +
+            '<div class="appt-form-row"><label>Data wizyty</label><input type="date" name="date" value="' + escapeAttr(booking.date || '') + '" required></div>' +
+            '<div class="appt-form-row"><label>Godzina</label><input type="time" name="time" value="' + escapeAttr(booking.time || '') + '" required></div>' +
             '<div class="appt-form-row"><label>Czas trwania (min)</label><input type="number" name="duration" value="' + dur + '" min="10" max="240" step="10" required></div>' +
             '<div class="appt-form-row"><label>Komentarz klienta</label><textarea name="comment" rows="3">' + escapeHtml(booking.comment || '') + '</textarea></div>' +
             '<div class="appt-form-error" style="display:none"></div>' +
@@ -709,19 +710,30 @@
       e.preventDefault();
       var form = this;
       var errorEl = form.querySelector('.appt-form-error');
-      var newTime = form.elements.time.value.trim();
-      if (!/^\d{2}:\d{2}$/.test(newTime)) {
-        errorEl.textContent = 'Nieprawidłowy format godziny (HH:MM)';
+      var newDate = form.elements.date.value;
+      var newTime = form.elements.time.value;
+      if (!newDate) {
+        errorEl.textContent = 'Wybierz datę wizyty.';
+        errorEl.style.display = '';
+        return;
+      }
+      if (!newTime) {
+        errorEl.textContent = 'Wybierz godzinę wizyty.';
         errorEl.style.display = '';
         return;
       }
       var newDur = parseInt(form.elements.duration.value) || dur;
+      if (isNaN(newDur) || newDur < 10 || newDur > 240) {
+        errorEl.textContent = 'Czas trwania musi wynosić od 10 do 240 minut.';
+        errorEl.style.display = '';
+        return;
+      }
       var newStart = timeToMins(newTime);
       var newEnd = newStart + newDur;
       var conflictTime = null;
       Object.keys(acceptedById).forEach(function(bid) {
         var b = acceptedById[bid];
-        if (b.doctorId !== booking.doctorId || b.id === booking.id) return;
+        if (b.doctorId !== booking.doctorId || b.id === booking.id || b.date !== newDate) return;
         var bStart = timeToMins(b.time);
         var bEnd = bStart + (b.duration || getServiceDuration(b.service) || 20);
         if (newStart < bEnd && newEnd > bStart) conflictTime = b.time;
@@ -731,7 +743,7 @@
         errorEl.style.display = '';
         return;
       }
-      var schedErr = validateAgainstDoctorSchedule(newTime, newDur, booking.date, booking.doctorId);
+      var schedErr = validateAgainstDoctorSchedule(newTime, newDur, newDate, booking.doctorId);
       if (schedErr) { errorEl.textContent = schedErr; errorEl.style.display = ''; return; }
       errorEl.style.display = 'none';
       amendAppt(booking.id, booking.slotId || booking.id, {
@@ -740,6 +752,7 @@
         phone: form.elements.phone.value.trim(),
         email: form.elements.email.value.trim(),
         service: form.elements.service.value,
+        date: newDate,
         time: newTime,
         duration: newDur,
         comment: form.elements.comment.value.trim()
@@ -764,7 +777,7 @@
     var db = window.PawsomeDB;
     var batch = db.batch();
     batch.update(db.collection('appointments').doc(id), fields);
-    if (slotId) batch.update(db.collection('slots').doc(slotId), { time: fields.time, duration: fields.duration });
+    if (slotId) batch.update(db.collection('slots').doc(slotId), { date: fields.date, time: fields.time, duration: fields.duration });
     batch.commit().then(closeApptModal).catch(function(err) {
       var errorEl = document.querySelector('.appt-form-error');
       if (errorEl) { errorEl.textContent = 'Błąd zapisu — spróbuj ponownie'; errorEl.style.display = ''; }
