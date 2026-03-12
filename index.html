@@ -30,23 +30,20 @@
     position: relative;
     overflow: hidden;
   }
-  .hero { --paw-offset: 0px; }
   .hero::before {
     content: '🐾';
     position: absolute;
     font-size: 18rem;
     top: 10%;
     right: -2%;
-    opacity: 0;
-    animation: pawPrint 1.5s ease 0.8s forwards;
-    transform: translateY(var(--paw-offset)) scale(1) rotate(-15deg);
+    opacity: 0.05;
+    transform: rotate(-15deg);
   }
   .hero-content { max-width: 600px; min-width: 0; z-index: 2; }
   .hero h1 {
     font-size: clamp(3rem, 5.5vw, 5rem);
     line-height: 1.08;
     margin-bottom: 1.5rem;
-    animation: slideRight 1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
   }
   .hero h1 em {
     color: #9B5B3F;
@@ -57,12 +54,10 @@
     color: #666;
     max-width: 440px;
     margin-bottom: 2.5rem;
-    animation: fadeUp 1s ease 0.3s both;
   }
   .hero-buttons {
     display: flex;
     gap: 1rem;
-    animation: fadeUp 1s ease 0.5s both;
   }
   .btn-primary {
     background: var(--deep-olive);
@@ -102,7 +97,6 @@
     justify-content: center;
     align-items: center;
     min-width: 0;
-    animation: scaleIn 1.2s cubic-bezier(0.22, 1, 0.36, 1) 0.2s both;
   }
   .hero-card {
     width: 100%;
@@ -127,7 +121,6 @@
     transform: translate(-50%, -50%);
     font-size: 10rem;
     filter: drop-shadow(0 20px 40px rgba(0,0,0,0.1));
-    animation: float 4s ease-in-out infinite;
     z-index: 2;
   }
   .floating-badge {
@@ -140,10 +133,9 @@
     align-items: center;
     gap: 0.7rem;
     z-index: 5;
-    animation: fadeUp 0.8s ease both;
   }
-  .floating-badge.top { top: 10%; right: -30px; animation-delay: 0.3s; }
-  .floating-badge.bottom { bottom: 15%; left: -40px; animation-delay: 0.5s; }
+  .floating-badge.top { top: 10%; right: -30px; }
+  .floating-badge.bottom { bottom: 15%; left: -40px; }
   .badge-icon {
     width: 40px; height: 40px;
     border-radius: 12px;
@@ -498,7 +490,6 @@
   }
   .cta-emoji {
     font-size: 4rem;
-    animation: float 4s ease-in-out infinite;
   }
   .contact-cta-card h3 {
     font-size: 1.8rem;
@@ -550,13 +541,6 @@
   .team-member:nth-child(4) { transition-delay: 0.24s; }
 
   /* Stats entrance */
-  .stat-item.visible .stat-number {
-    animation: countUp 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-  }
-
-  /* CTA button pulse */
-  .btn-primary { animation: pulse 3s ease-in-out infinite; }
-  .btn-primary:hover { animation: none; }
 
   /* Nav link underline slide-in */
   .nav-links a::after {
@@ -572,14 +556,9 @@
 
   /* Contact icon bounce on hover */
   .contact-item:hover .contact-icon {
-    animation: iconBounce 0.5s ease;
+   ation: iconBounce 0.5s ease;
   }
 
-  /* Hero emoji parallax base */
-  .hero::before {
-    transition: transform 0.3s ease-out;
-    will-change: transform;
-  }
 
   /* ──────── RESPONSIVE ──────── */
   @media (max-width: 1280px) {
@@ -611,7 +590,6 @@
       display: flex;
       align-items: center;
       gap: 0.7rem;
-      animation: fadeUp 0.8s ease 0.8s both;
     }
     .services-grid { grid-template-columns: repeat(2, 1fr); }
     .about { grid-template-columns: 1fr; }
@@ -706,19 +684,19 @@
 
 <!-- ──── STATS ──── -->
 <div class="stats">
-  <div class="stat-item anim">
+  <div class="stat-item">
     <div class="stat-number">15+</div>
     <div class="stat-label">Lat doświadczenia</div>
   </div>
-  <div class="stat-item anim anim-delay-1">
+  <div class="stat-item">
     <div class="stat-number">12 tys.</div>
     <div class="stat-label">Szczęśliwych pacjentów</div>
   </div>
-  <div class="stat-item anim anim-delay-2">
+  <div class="stat-item">
     <div class="stat-number">24/7</div>
     <div class="stat-label">Opieka nagła</div>
   </div>
-  <div class="stat-item anim anim-delay-3">
+  <div class="stat-item">
     <div class="stat-number">98%</div>
     <div class="stat-label">Zadowolonych klientów</div>
   </div>
@@ -726,38 +704,38 @@
 
 <!-- ──── SERVICES ──── -->
 <section class="services" id="uslugi" aria-label="Usługi">
-  <div class="services-header anim">
+  <div class="services-header">
     <p class="section-label">Co robimy</p>
     <h2>Opieka Szyta na Miarę</h2>
     <p>Od rutynowych badań po zaawansowane zabiegi — nasz zespół łączy wiedzę z ciepłem przy każdej wizycie.</p>
   </div>
   <div class="services-grid">
-    <a href="badania-profilaktyczne.html" class="service-card anim">
+    <a href="badania-profilaktyczne.html" class="service-card">
       <div class="service-icon si-1">🩺</div>
       <h3>Badania profilaktyczne</h3>
       <p>Kompleksowe przeglądy zdrowia obejmujące badania krwi, kontrolę stomatologiczną i profilaktykę dostosowaną do wieku i rasy Twojego pupila.</p>
     </a>
-    <a href="szczepienia.html" class="service-card anim anim-delay-1">
+    <a href="szczepienia.html" class="service-card">
       <div class="service-icon si-2">💉</div>
       <h3>Szczepienia</h3>
       <p>Indywidualny harmonogram szczepień chroniący przed chorobami — dopasowany do każdego etapu życia zwierzęcia.</p>
     </a>
-    <a href="stomatologia.html" class="service-card anim anim-delay-2">
+    <a href="stomatologia.html" class="service-card">
       <div class="service-icon si-3">🦷</div>
       <h3>Stomatologia</h3>
       <p>Profesjonalne czyszczenie, ekstrakcje i poradnictwo w zakresie higieny jamy ustnej. Zdrowe zęby to dłuższe i szczęśliwsze życie.</p>
     </a>
-    <a href="diagnostyka.html" class="service-card anim anim-delay-3">
+    <a href="diagnostyka.html" class="service-card">
       <div class="service-icon si-4">🔬</div>
       <h3>Diagnostyka</h3>
       <p>Laboratorium na miejscu, radiografia cyfrowa i USG — szybkie i precyzyjne wyniki, gdy liczy się każda chwila.</p>
     </a>
-    <a href="chirurgia.html" class="service-card anim anim-delay-4">
+    <a href="chirurgia.html" class="service-card">
       <div class="service-icon si-5">🏥</div>
       <h3>Chirurgia</h3>
       <p>Od rutynowych kastracji i sterylizacji po złożone zabiegi ortopedyczne i na tkankach miękkich — zawsze z najwyższą precyzją.</p>
     </a>
-    <a href="plany-zywieniowe.html" class="service-card anim anim-delay-5">
+    <a href="plany-zywieniowe.html" class="service-card">
       <div class="service-icon si-6">🐾</div>
       <h3>Plany żywieniowe</h3>
       <p>Spersonalizowane diety i suplementacja opracowane przez naszych specjalistów, by Twój pupil cieszył się pełnią zdrowia i witalności.</p>
@@ -771,11 +749,11 @@
     <div class="about-img-emoji">🐈</div>
   </div>
   <div class="about-content">
-    <p class="section-label anim">Nasza filozofia</p>
-    <h2 class="anim anim-delay-1">Medycyna z Sercem,<br>Nauka z Duszą</h2>
-    <p class="anim anim-delay-2">Klinika Pawsome powstała w 2009 roku z prostego przekonania: każde zwierzę zasługuje na opiekę tak delikatną, jak i fachową. Łączymy najnowszą wiedzę weterynaryjną z podejściem pozbawionym stresu.</p>
-    <p class="anim anim-delay-3">Nasza klinika ma przypominać dom — spokojne przestrzenie, minimum stresu i zespół, który naprawdę słucha zarówno Ciebie, jak i Twojego pupila.</p>
-    <div class="values anim anim-delay-4">
+    <p class="section-label">Nasza filozofia</p>
+    <h2>Medycyna z Sercem,<br>Nauka z Duszą</h2>
+    <p>Klinika Pawsome powstała w 2009 roku z prostego przekonania: każde zwierzę zasługuje na opiekę tak delikatną, jak i fachową. Łączymy najnowszą wiedzę weterynaryjną z podejściem pozbawionym stresu.</p>
+    <p>Nasza klinika ma przypominać dom — spokojne przestrzenie, minimum stresu i zespół, który naprawdę słucha zarówno Ciebie, jak i Twojego pupila.</p>
+    <div class="values">
       <div class="value-item">
         <div class="value-dot vd-1"></div>
         <div><strong>Bez stresu</strong><span>Łagodne podejście do każdego pacjenta</span></div>
@@ -798,46 +776,46 @@
 
 <!-- ──── TEAM ──── -->
 <section class="team" id="zespol" aria-label="Zespół">
-  <div class="team-header anim">
+  <div class="team-header">
     <p class="section-label">Nasi ludzie</p>
     <h2>Poznaj Nasz Zespół</h2>
   </div>
   <div class="team-grid">
-    <div class="team-member anim">
+    <div class="team-member">
       <div class="team-avatar ta-1">👩‍⚕️</div>
       <h3>lek. wet. Anna Kowalska</h3>
       <p>Główny lekarz</p>
       <div class="bio">15 lat doświadczenia w medycynie wewnętrznej i geriatrii.</div>
     </div>
-    <div class="team-member anim anim-delay-1">
+    <div class="team-member">
       <div class="team-avatar ta-2">👨‍⚕️</div>
       <h3>lek. wet. Marek Wiśniewski</h3>
       <p>Chirurg</p>
       <div class="bio">Specjalista chirurgii ortopedycznej i tkanek miękkich.</div>
     </div>
-    <div class="team-member anim anim-delay-2">
-      <div class="team-avatar ta-3">🧑‍⚕️</div>
-      <h3>lek. wet. Tomasz Nowak</h3>
+    <div class="team-member">
+      <div class="team-avatar ta-3">👩‍🔬</div>
+      <h3>lek. wet. Ewa Zielińska</h3>
       <p>Dermatologia</p>
-      <div class="bio">Ekspertk od alergii, chorób skóry i zaburzeń immunologicznych.</div>
+      <div class="bio">Ekspertka od alergii, chorób skóry i zaburzeń immunologicznych.</div>
     </div>
-    <div class="team-member anim anim-delay-3">
-      <div class="team-avatar ta-4">👩‍🔬</div>
-      <h3>lek. wet. Magdalena Leszczowska</h3>
+    <div class="team-member">
+      <div class="team-avatar ta-4">🧑‍⚕️</div>
+      <h3>lek. wet. Tomasz Nowak</h3>
       <p>Opieka nagła</p>
-      <div class="bio">Może i jestem leszczem ale przynajmniej lubią mnie koty</div>
+      <div class="bio">Całodobowa opieka w nagłych i krytycznych przypadkach.</div>
     </div>
   </div>
 </section>
 
 <!-- ──── TESTIMONIALS ──── -->
 <section class="testimonials" id="opinie" aria-label="Opinie klientów">
-  <div class="testimonials-header anim">
+  <div class="testimonials-header">
     <p class="section-label">Szczęśliwe rodziny</p>
     <h2>Co Mówią Nasi Klienci</h2>
   </div>
   <div class="testimonials-grid">
-    <div class="testimonial-card anim">
+    <div class="testimonial-card">
       <div class="stars">★ ★ ★ ★ ★</div>
       <blockquote>„Od pierwszego kroku w klinice nasz lękliwy piesek ze schroniska był traktowany z ogromną cierpliwością. Dr Kowalska to skarb — wszystko wyjaśniła spokojnie i nigdy nas nie pośpieszała."</blockquote>
       <div class="testimonial-author">
@@ -848,7 +826,7 @@
         </div>
       </div>
     </div>
-    <div class="testimonial-card anim anim-delay-1">
+    <div class="testimonial-card">
       <div class="stars">★ ★ ★ ★ ★</div>
       <blockquote>„Nasza kotka Luna miała nagły problem stomatologiczny w nocy. Zespół dyżurny był niesamowity — spokojny, profesjonalny i naprawdę troskliwy. Nie wyobrażamy sobie innej kliniki."</blockquote>
       <div class="testimonial-author">
@@ -859,7 +837,7 @@
         </div>
       </div>
     </div>
-    <div class="testimonial-card anim anim-delay-2">
+    <div class="testimonial-card">
       <div class="stars">★ ★ ★ ★ ★</div>
       <blockquote>„Plan żywieniowy, który stworzyli dla Herbatnika, zmienił wszystko. Więcej energii, piękniejsza sierść, lepsza kondycja. Widać, że naprawdę zależy im na długoterminowym zdrowiu."</blockquote>
       <div class="testimonial-author">
@@ -877,13 +855,13 @@
 <section class="contact" id="kontakt" aria-label="Kontakt">
   <div class="contact-wrapper">
     <div class="contact-info">
-      <p class="section-label anim">Kontakt</p>
-      <h2 class="anim anim-delay-1">Chcesz Zapewnić Pupilowi Najlepszą Opiekę?</h2>
-      <p class="anim anim-delay-2">Niezależnie czy chodzi o rutynową kontrolę, czy pilny przypadek — jesteśmy dla Ciebie. Napisz do nas lub zadzwoń.</p>
-      <div class="contact-details anim anim-delay-3">
+      <p class="section-label">Kontakt</p>
+      <h2>Chcesz Zapewnić Pupilowi Najlepszą Opiekę?</h2>
+      <p>Niezależnie czy chodzi o rutynową kontrolę, czy pilny przypadek — jesteśmy dla Ciebie. Napisz do nas lub zadzwoń.</p>
+      <div class="contact-details">
         <div class="contact-item">
           <div class="contact-icon">📍</div>
-          <div><strong>ul. Dębowa 142</strong><br>00-001 Toronto</div>
+          <div><strong>ul. Dębowa 142</strong><br>00-001 Warszawa</div>
         </div>
         <div class="contact-item">
           <div class="contact-icon">📞</div>
@@ -899,7 +877,7 @@
         </div>
       </div>
     </div>
-    <div class="contact-cta-card anim anim-delay-2">
+    <div class="contact-cta-card">
       <div class="cta-emoji">💌</div>
       <h3>Napisz do Nas</h3>
       <p>Masz pytanie o zdrowie swojego pupila? Chcesz umówić wizytę? Wyślij nam wiadomość — odpowiemy najszybciej jak to możliwe.</p>
@@ -983,34 +961,6 @@
     });
   });
 
-  // Scroll-triggered animations (deferred)
-  requestIdleCallback(() => {
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('visible');
-          observer.unobserve(entry.target);
-        }
-      });
-    }, { threshold: 0.15, rootMargin: '0px 0px -40px 0px' });
-    document.querySelectorAll('.anim').forEach(el => observer.observe(el));
-  });
-
-  // Subtle parallax on hero paw emoji
-  let ticking = false;
-  window.addEventListener('scroll', () => {
-    if (!ticking) {
-      requestAnimationFrame(() => {
-        const scrollY = window.scrollY;
-        const heroBefore = document.querySelector('.hero');
-        if (heroBefore && scrollY < window.innerHeight) {
-          heroBefore.style.setProperty('--paw-offset', scrollY * 0.15 + 'px');
-        }
-        ticking = false;
-      });
-      ticking = true;
-    }
-  });
 </script>
 <script>if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js')</script>
 </body>
