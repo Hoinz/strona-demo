@@ -682,6 +682,10 @@
   font-size: 0.82rem;
   color: #888;
 }
+.meta-date {
+  font-weight: 600;
+  color: #5a7a5a;
+}
 .meta-comment {
   font-style: italic;
   color: #888;

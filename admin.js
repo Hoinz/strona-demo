@@ -14,7 +14,10 @@
   var tabs = document.querySelectorAll('.admin-tab');
 
   var currentFilter = 'pending';
-  var unsubscribe = null;
+  var unsubscribePending = null;
+  var unsubscribeDate = null;
+  var allPendingBookings = [];
+  var allDateBookings = [];
   var dashboardInitialized = false;
   var currentUser = null;
   var viewMode = 'mine';   // 'mine' | 'all'
@@ -46,7 +49,8 @@
         doctorName = '';
         loginView.style.display = '';
         dashboard.classList.remove('visible');
-        if (unsubscribe) { unsubscribe(); unsubscribe = null; }
+        if (unsubscribePending) { unsubscribePending(); unsubscribePending = null; }
+        if (unsubscribeDate) { unsubscribeDate(); unsubscribeDate = null; }
       }
     });
   }
@@ -92,7 +96,7 @@
         currentFilter = this.dataset.filter;
         tabs.forEach(function(t) { t.classList.remove('active'); });
         this.classList.add('active');
-        loadBookings();
+        refreshDisplay(datePicker.value);
       });
     });
 
@@ -124,53 +128,80 @@
     loadBookings();
   }
 
-  // ── LOAD BOOKINGS (single unfiltered listener) ──
+  // ── LOAD BOOKINGS (two listeners: all pending + date-specific) ──
   function loadBookings() {
     var db = window.PawsomeDB;
     if (!db) return;
 
-    if (unsubscribe) unsubscribe();
+    if (unsubscribePending) { unsubscribePending(); unsubscribePending = null; }
+    if (unsubscribeDate) { unsubscribeDate(); unsubscribeDate = null; }
 
     var dateStr = datePicker.value;
 
-    var query = db.collection('appointments').where('date', '==', dateStr);
+    // Listener 1: All pending appointments across all dates
+    var pendingQuery = db.collection('appointments').where('status', '==', 'pending');
     if (viewMode === 'mine' && currentUser) {
-      query = query.where('doctorId', '==', currentUser.uid);
+      pendingQuery = pendingQuery.where('doctorId', '==', currentUser.uid);
     }
-
-    unsubscribe = query.onSnapshot(function(snapshot) {
-      var allBookings = [];
+    unsubscribePending = pendingQuery.onSnapshot(function(snapshot) {
+      allPendingBookings = [];
       snapshot.forEach(function(doc) {
-        allBookings.push({ id: doc.id, ...doc.data() });
+        allPendingBookings.push({ id: doc.id, ...doc.data() });
       });
-      allBookings.sort(function(a, b) { return (a.time || '').localeCompare(b.time || ''); });
-
-      // Derive counts from in-memory data
-      var counts = { pending: 0, accepted: 0, rejected: 0, all: allBookings.length };
-      allBookings.forEach(function(b) {
-        counts[b.status] = (counts[b.status] || 0) + 1;
+      allPendingBookings.sort(function(a, b) {
+        var d = (a.date || '').localeCompare(b.date || '');
+        return d !== 0 ? d : (a.time || '').localeCompare(b.time || '');
       });
-      updateCountsFromData(counts);
-
-      // Build acceptedById lookup before renderBookings so click handlers can use it
-      var acceptedArr = allBookings.filter(function(b) { return b.status === 'accepted'; });
-      acceptedById = {};
-      acceptedArr.forEach(function(b) { acceptedById[b.id] = b; });
-
-      // Filter for display
-      var filtered = currentFilter === 'all'
-        ? allBookings
-        : allBookings.filter(function(b) { return b.status === currentFilter; });
-      renderBookings(filtered);
-
-      renderTimeline(dateStr, acceptedArr);
+      refreshDisplay(datePicker.value);
     }, function() {
       bookingsList.innerHTML = '<div class="no-bookings">Błąd ładowania danych</div>';
     });
+
+    // Listener 2: All appointments for the selected date (accepted / rejected / all)
+    var dateQuery = db.collection('appointments').where('date', '==', dateStr);
+    if (viewMode === 'mine' && currentUser) {
+      dateQuery = dateQuery.where('doctorId', '==', currentUser.uid);
+    }
+    unsubscribeDate = dateQuery.onSnapshot(function(snapshot) {
+      allDateBookings = [];
+      snapshot.forEach(function(doc) {
+        allDateBookings.push({ id: doc.id, ...doc.data() });
+      });
+      allDateBookings.sort(function(a, b) { return (a.time || '').localeCompare(b.time || ''); });
+      refreshDisplay(datePicker.value);
+    }, function() {});
+  }
+
+  // ── REFRESH DISPLAY (re-render from cached data) ──
+  function refreshDisplay(dateStr) {
+    // Counts: pending = all dates, others = selected date only
+    var counts = { pending: allPendingBookings.length, accepted: 0, rejected: 0, all: allDateBookings.length };
+    allDateBookings.forEach(function(b) {
+      if (b.status === 'accepted' || b.status === 'rejected') {
+        counts[b.status] = (counts[b.status] || 0) + 1;
+      }
+    });
+    updateCountsFromData(counts);
+
+    // Build acceptedById for conflict detection (always date-specific)
+    var acceptedArr = allDateBookings.filter(function(b) { return b.status === 'accepted'; });
+    acceptedById = {};
+    acceptedArr.forEach(function(b) { acceptedById[b.id] = b; });
+
+    // Render list
+    if (currentFilter === 'pending') {
+      renderBookings(allPendingBookings, true);
+    } else if (currentFilter === 'all') {
+      renderBookings(allDateBookings);
+    } else {
+      renderBookings(allDateBookings.filter(function(b) { return b.status === currentFilter; }));
+    }
+
+    renderTimeline(dateStr, acceptedArr);
   }
 
   // ── RENDER BOOKINGS ──
-  function renderBookings(bookings) {
+  function renderBookings(bookings, showDate) {
     if (bookings.length === 0) {
       bookingsList.innerHTML = '<div class="no-bookings">Brak rezerwacji do wyświetlenia</div>';
       return;
@@ -187,6 +218,7 @@
           '<span class="booking-status ' + escapeAttr(b.status) + '">' + statusLabel + '</span>' +
           '<h3>' + escapeHtml(b.patientName) + ' — ' + escapeHtml(b.petName) + '</h3>' +
           '<div class="booking-meta">' +
+            (showDate ? '<span class="meta-date">📅 ' + escapeHtml(formatDateDisplay(b.date)) + '</span>' : '') +
             '<span>🕐 ' + escapeHtml(b.time) + ' – ' + escapeHtml(endTime) + '</span>' +
             '<span>⏱ ' + escapeHtml(durLabel) + '</span>' +
             '<span>📞 ' + escapeHtml(formatPhone(b.phone)) + '</span>' +
@@ -770,6 +802,15 @@
 
   function escapeAttr(str) {
     return escapeHtml(str);
+  }
+
+  function formatDateDisplay(dateStr) {
+    if (!dateStr) return '';
+    var months = ['stycznia','lutego','marca','kwietnia','maja','czerwca',
+                  'lipca','sierpnia','września','października','listopada','grudnia'];
+    var parts = dateStr.split('-');
+    if (parts.length !== 3) return dateStr;
+    return parseInt(parts[2], 10) + ' ' + (months[parseInt(parts[1], 10) - 1] || '') + ' ' + parts[0];
   }
 
   function formatPhone(raw) {
