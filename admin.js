@@ -647,9 +647,12 @@
           '<button class="appt-modal-close">&times;</button>' +
         '</div>' +
         '<div class="appt-modal-body">' +
-          '<p class="appt-modal-meta">' + escapeHtml(getServiceName(booking.service)) + ' &bull; ' + escapeHtml(booking.time) + ' – ' + escapeHtml(endTime) + ' &bull; ' + dur + ' min' + (booking.comment ? '<br><span class="pending-comment">💬 ' + escapeHtml(booking.comment) + '</span>' : '') + '</p>' +
+          '<p class="appt-modal-meta">' + escapeHtml(getServiceName(booking.service)) + ' &bull; ' + escapeHtml(booking.time) + ' \u2013 ' + escapeHtml(endTime) + ' &bull; ' + dur + ' min' + (booking.comment ? '<br><span class="pending-comment">\uD83D\uDCAC ' + escapeHtml(booking.comment) + '</span>' : '') + '</p>' +
           '<div class="appt-modal-actions">' +
-            '<button class="appt-btn-amend">Edytuj wizytę</button>' +
+            '<div class="appt-actions-edit">' +
+              '<button class="appt-btn-amend-time">Edytuj termin</button>' +
+              '<button class="appt-btn-amend-entry">Edytuj dane</button>' +
+            '</div>' +
             '<button class="appt-btn-delete">Odrzuć wizytę</button>' +
           '</div>' +
           '<div class="appt-delete-confirm" style="display:none">' +
@@ -659,20 +662,26 @@
               '<button class="appt-btn-delete-cancel">Anuluj</button>' +
             '</div>' +
           '</div>' +
-          '<form class="appt-amend-form" style="display:none">' +
+          '<form class="appt-time-form" style="display:none">' +
+            '<div class="appt-form-row"><label>Data wizyty</label><input type="date" name="date" value="' + escapeAttr(booking.date || '') + '" required></div>' +
+            '<div class="appt-form-row"><label>Godzina</label><input type="time" name="time" value="' + escapeAttr(booking.time || '') + '" required></div>' +
+            '<div class="appt-form-row"><label>Czas trwania (min)</label><input type="number" name="duration" value="' + dur + '" min="10" max="240" step="10" required></div>' +
+            '<div class="appt-form-error" style="display:none"></div>' +
+            '<div class="appt-form-actions">' +
+              '<button type="submit" class="appt-btn-save">Zapisz zmiany</button>' +
+              '<button type="button" class="appt-btn-form-cancel">Anuluj</button>' +
+            '</div>' +
+          '</form>' +
+          '<form class="appt-entry-form" style="display:none">' +
             '<div class="appt-form-row"><label>Imię właściciela</label><input type="text" name="patientName" value="' + escapeAttr(booking.patientName || '') + '" required></div>' +
             '<div class="appt-form-row"><label>Imię zwierzęcia</label><input type="text" name="petName" value="' + escapeAttr(booking.petName || '') + '" required></div>' +
             '<div class="appt-form-row"><label>Telefon</label><input type="tel" name="phone" value="' + escapeAttr(booking.phone || '') + '"></div>' +
             '<div class="appt-form-row"><label>Email</label><input type="email" name="email" value="' + escapeAttr(booking.email || '') + '"></div>' +
             '<div class="appt-form-row"><label>Usługa</label><select name="service">' + serviceOptions + '</select></div>' +
-            '<div class="appt-form-row"><label>Data wizyty</label><input type="date" name="date" value="' + escapeAttr(booking.date || '') + '" required></div>' +
-            '<div class="appt-form-row"><label>Godzina</label><input type="time" name="time" value="' + escapeAttr(booking.time || '') + '" required></div>' +
-            '<div class="appt-form-row"><label>Czas trwania (min)</label><input type="number" name="duration" value="' + dur + '" min="10" max="240" step="10" required></div>' +
             '<div class="appt-form-row"><label>Komentarz klienta</label><textarea name="comment" rows="3">' + escapeHtml(booking.comment || '') + '</textarea></div>' +
-            '<div class="appt-form-error" style="display:none"></div>' +
             '<div class="appt-form-actions">' +
               '<button type="submit" class="appt-btn-save">Zapisz zmiany</button>' +
-              '<button type="button" class="appt-btn-amend-cancel">Anuluj</button>' +
+              '<button type="button" class="appt-btn-form-cancel">Anuluj</button>' +
             '</div>' +
           '</form>' +
         '</div>' +
@@ -686,27 +695,35 @@
     overlay.addEventListener('click', function(e) { if (e.target === overlay) closeApptModal(); });
     modal.querySelector('.appt-modal-close').addEventListener('click', closeApptModal);
 
+    function showActions() {
+      modal.querySelector('.appt-modal-actions').style.display = '';
+      modal.querySelector('.appt-delete-confirm').style.display = 'none';
+      modal.querySelector('.appt-time-form').style.display = 'none';
+      modal.querySelector('.appt-entry-form').style.display = 'none';
+    }
+
     modal.querySelector('.appt-btn-delete').addEventListener('click', function() {
       modal.querySelector('.appt-modal-actions').style.display = 'none';
       modal.querySelector('.appt-delete-confirm').style.display = '';
     });
-    modal.querySelector('.appt-btn-delete-cancel').addEventListener('click', function() {
-      modal.querySelector('.appt-delete-confirm').style.display = 'none';
-      modal.querySelector('.appt-modal-actions').style.display = '';
-    });
+    modal.querySelector('.appt-btn-delete-cancel').addEventListener('click', showActions);
     modal.querySelector('.appt-btn-delete-confirm').addEventListener('click', function() {
       deleteAppt(booking.id, booking.slotId || booking.id);
     });
 
-    modal.querySelector('.appt-btn-amend').addEventListener('click', function() {
+    modal.querySelector('.appt-btn-amend-time').addEventListener('click', function() {
       modal.querySelector('.appt-modal-actions').style.display = 'none';
-      modal.querySelector('.appt-amend-form').style.display = '';
+      modal.querySelector('.appt-time-form').style.display = '';
     });
-    modal.querySelector('.appt-btn-amend-cancel').addEventListener('click', function() {
-      modal.querySelector('.appt-amend-form').style.display = 'none';
-      modal.querySelector('.appt-modal-actions').style.display = '';
+    modal.querySelector('.appt-btn-amend-entry').addEventListener('click', function() {
+      modal.querySelector('.appt-modal-actions').style.display = 'none';
+      modal.querySelector('.appt-entry-form').style.display = '';
     });
-    modal.querySelector('.appt-amend-form').addEventListener('submit', function(e) {
+    modal.querySelectorAll('.appt-btn-form-cancel').forEach(function(btn) {
+      btn.addEventListener('click', showActions);
+    });
+
+    modal.querySelector('.appt-time-form').addEventListener('submit', function(e) {
       e.preventDefault();
       var form = this;
       var errorEl = form.querySelector('.appt-form-error');
@@ -747,14 +764,21 @@
       if (schedErr) { errorEl.textContent = schedErr; errorEl.style.display = ''; return; }
       errorEl.style.display = 'none';
       amendAppt(booking.id, booking.slotId || booking.id, {
+        date: newDate,
+        time: newTime,
+        duration: newDur
+      });
+    });
+
+    modal.querySelector('.appt-entry-form').addEventListener('submit', function(e) {
+      e.preventDefault();
+      var form = this;
+      amendAppt(booking.id, null, {
         patientName: form.elements.patientName.value.trim(),
         petName: form.elements.petName.value.trim(),
         phone: form.elements.phone.value.trim(),
         email: form.elements.email.value.trim(),
         service: form.elements.service.value,
-        date: newDate,
-        time: newTime,
-        duration: newDur,
         comment: form.elements.comment.value.trim()
       });
     });

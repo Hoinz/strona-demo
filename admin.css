@@ -600,8 +600,10 @@
 .appt-modal-close:hover { color: var(--charcoal); background: rgba(0,0,0,0.05); }
 .appt-modal-body { padding: 1.2rem 1.6rem 1.6rem; }
 .appt-modal-meta { font-size: 0.84rem; color: #888; margin-bottom: 1.2rem; }
-.appt-modal-actions { display: flex; gap: 0.7rem; }
-.appt-btn-amend {
+.appt-modal-actions { display: flex; flex-direction: column; gap: 0.55rem; }
+.appt-actions-edit { display: flex; gap: 0.7rem; }
+.appt-btn-amend-time,
+.appt-btn-amend-entry {
   flex: 1;
   background: var(--deep-olive);
   color: var(--cream);
@@ -613,14 +615,16 @@
   cursor: pointer;
   font-family: 'DM Sans', sans-serif;
   transition: background 0.25s;
+  min-width: 0;
 }
-.appt-btn-amend:hover { background: var(--charcoal); }
+.appt-btn-amend-time:hover,
+.appt-btn-amend-entry:hover { background: var(--charcoal); }
 .appt-btn-delete {
-  flex: 1;
+  width: 100%;
   background: transparent;
   color: #c62828;
   border: 1.5px solid #c62828;
-  padding: 0.65rem 1rem;
+  padding: 0.6rem 1rem;
   border-radius: 50px;
   font-size: 0.85rem;
   font-weight: 500;
@@ -706,7 +710,8 @@
   white-space: nowrap;
 }
 
-.appt-amend-form { margin-top: 0.8rem; }
+.appt-time-form,
+.appt-entry-form { margin-top: 0.8rem; }
 .appt-form-row {
   display: flex;
   flex-direction: column;
@@ -759,7 +764,7 @@
   transition: background 0.25s;
 }
 .appt-btn-save:hover { background: var(--charcoal); }
-.appt-btn-amend-cancel {
+.appt-btn-form-cancel {
   flex: 1;
   background: transparent;
   color: #888;
@@ -774,6 +779,9 @@
 @media (max-width: 500px) {
   .appt-modal-overlay { padding: 0; align-items: flex-end; }
   .appt-modal { max-width: 100%; border-radius: 20px 20px 0 0; max-height: 92vh; }
+  .appt-actions-edit { flex-wrap: wrap; }
+  .appt-btn-amend-time,
+  .appt-btn-amend-entry { flex: 1 1 calc(50% - 0.35rem); }
 }
 
 /* ── SCHEDULE BUTTON & MODAL ── */
