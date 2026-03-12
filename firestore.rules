@@ -22,7 +22,10 @@ service cloud.firestore {
                          'doctorId','doctorName']);
       allow update: if request.auth != null
                     && request.resource.data.diff(resource.data)
-                         .affectedKeys().hasOnly(['status', 'notes', 'duration']);
+                         .affectedKeys().hasOnly([
+                           'status', 'notes', 'duration',
+                           'patientName', 'petName', 'phone', 'email', 'service', 'time'
+                         ]);
       allow delete: if request.auth != null;
     }
 
