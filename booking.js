@@ -65,6 +65,15 @@
   var bookingForm = document.getElementById('booking-form');
   var summaryEl = document.getElementById('booking-summary');
   var messageEl = document.getElementById('booking-message');
+  var successOverlay = document.getElementById('booking-success-overlay');
+  if (successOverlay) {
+    document.getElementById('booking-popup-close').addEventListener('click', function() {
+      successOverlay.classList.remove('visible');
+    });
+    successOverlay.addEventListener('click', function(e) {
+      if (e.target === successOverlay) successOverlay.classList.remove('visible');
+    });
+  }
   var offlineNotice = document.getElementById('offline-notice');
   var servicePickerSection = document.getElementById('service-picker-section');
   var doctorGrid = document.getElementById('doctor-grid');
@@ -711,7 +720,13 @@
 
   // ── SHOW MESSAGE ──
   function showMessage(type, title, text) {
-    var icon = type === 'success' ? '✅' : '❌';
+    if (type === 'success' && successOverlay) {
+      formSection.classList.remove('visible');
+      timeSlotsSection.classList.remove('visible');
+      successOverlay.classList.add('visible');
+      return;
+    }
+    var icon = '❌';
     messageEl.innerHTML =
       '<span class="msg-icon">' + icon + '</span>' +
       '<h3>' + escapeHtml(title) + '</h3>' +
