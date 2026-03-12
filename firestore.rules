@@ -24,7 +24,8 @@ service cloud.firestore {
                     && request.resource.data.diff(resource.data)
                          .affectedKeys().hasOnly([
                            'status', 'notes', 'duration',
-                           'patientName', 'petName', 'phone', 'email', 'service', 'time'
+                           'patientName', 'petName', 'phone', 'email', 'service', 'time',
+                           'date', 'comment'
                          ]);
       allow delete: if request.auth != null;
     }

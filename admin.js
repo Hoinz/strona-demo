@@ -860,7 +860,7 @@
 
   // ── DOCTOR SCHEDULE ──
   function loadAllDoctorSchedules() {
-    window.PawsomeDB.collection('doctorSchedules').get().then(function(snap) {
+    window.PawsomeDB.collection('doctorSchedules').onSnapshot(function(snap) {
       snap.forEach(function(doc) { doctorScheduleCache[doc.id] = doc.data(); });
     });
   }

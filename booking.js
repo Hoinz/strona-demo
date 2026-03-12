@@ -104,47 +104,6 @@
       .replace(/'/g, '&#39;');
   }
 
-  // ── SCHEDULE VALIDATION (mirrors admin validateAgainstScheduleData) ──
-  function validateScheduleForBooking(time, duration, date) {
-    var sched = doctorScheduleData;
-    if (!sched) return null;
-    var vStart = timeToMins(time), vEnd = vStart + duration;
-
-    if (sched.busyBlocks) {
-      for (var k = 0; k < sched.busyBlocks.length; k++) {
-        var bb = sched.busyBlocks[k];
-        if (bb.date !== date) continue;
-        if (vStart < timeToMins(bb.endTime) && vEnd > timeToMins(bb.startTime))
-          return 'Wizyta przypada na zablokowany czas lekarza (' + bb.startTime + '\u2013' + bb.endTime + '). Wybierz inny termin.';
-      }
-    }
-
-    if (sched.validFrom && date < sched.validFrom) return null;
-    if (sched.validUntil && date > sched.validUntil) return null;
-
-    var parts = date.split('-');
-    var dow = String(new Date(+parts[0], +parts[1] - 1, +parts[2]).getDay());
-    var day = (sched.days && sched.days[date]) ||
-              (sched.defaultWeek && sched.defaultWeek[dow]) ||
-              (sched.weeklyHours && sched.weeklyHours[dow]);
-    if (!day) return null;
-    if (!day.active) return 'Lekarz nie pracuje w wybranym dniu. Wybierz inny termin.';
-
-    var wStart = timeToMins(day.start), wEnd = timeToMins(day.end);
-    if (vStart < wStart || vEnd > wEnd)
-      return 'Wizyta wykracza poza godziny pracy lekarza (' + day.start + '\u2013' + day.end + '). Wybierz inny termin.';
-
-    var pauses = day.pauses || [];
-    for (var i = 0; i < pauses.length; i++) {
-      var p = pauses[i];
-      var ps = timeToMins(p.start), pe = timeToMins(p.end);
-      if (vStart < pe && vEnd > ps)
-        return 'Wizyta przypada na przerwę lekarza (' + p.start + '\u2013' + p.end + '). Wybierz inny termin.';
-    }
-
-    return null;
-  }
-
   // ── PHONE VALIDATION ──
   var MOBILE_PREFIXES = ['45','50','51','53','57','60','66','69','72','73','78','79','88'];
 
@@ -686,14 +645,6 @@
     var capturedDoctorId = selectedDoctor.id;
     var capturedDoctorName = selectedDoctor.name;
     var capturedDuration = SERVICE_DURATIONS[service] || SLOT_DURATION;
-
-    var schedErr = validateScheduleForBooking(capturedTime, capturedDuration, capturedDate);
-    if (schedErr) {
-      showMessage('error', 'Termin niedostępny', schedErr);
-      submitBtn.disabled = false;
-      submitBtn.textContent = 'Zarezerwuj wizytę';
-      return;
-    }
 
     // Use a transaction to prevent double-booking
     var slotRef = db.collection('slots').doc();
