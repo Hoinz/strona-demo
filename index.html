@@ -154,7 +154,7 @@
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
-  html { scroll-behavior: smooth; }
+  html { scroll-behavior: smooth; overflow-x: hidden; }
 
   body {
     font-family: 'DM Sans', sans-serif;
@@ -437,8 +437,8 @@
     z-index: 5;
     animation: fadeUp 0.8s ease both;
   }
-  .floating-badge.top { top: 5%; right: 0; animation-delay: 1s; }
-  .floating-badge.bottom { bottom: 10%; left: 0; animation-delay: 1.3s; }
+  .floating-badge.top { top: 10%; right: -30px; animation-delay: 1s; }
+  .floating-badge.bottom { bottom: 15%; left: -40px; animation-delay: 1.3s; }
   .badge-icon {
     width: 40px; height: 40px;
     border-radius: 12px;
@@ -451,6 +451,10 @@
   .badge-icon.orange { background: rgba(196, 133, 106, 0.3); }
   .badge-text small { display: block; font-size: 0.7rem; color: #999; }
   .badge-text strong { font-size: 0.9rem; }
+
+  .hero-badges-mobile {
+    display: none;
+  }
 
   /* ──────── STATS STRIP ──────── */
   .stats {
@@ -976,6 +980,22 @@
     .hero p { margin: 0 auto 2.5rem; }
     .hero-buttons { justify-content: center; }
     .hero-visual { display: none; }
+    .hero-badges-mobile {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    .floating-badge-mobile {
+      background: var(--white);
+      border-radius: 20px;
+      padding: 0.8rem 1.2rem;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+      animation: fadeUp 0.8s ease 0.8s both;
+    }
     .services-grid { grid-template-columns: repeat(2, 1fr); }
     .about { grid-template-columns: 1fr; }
     .about-img { min-height: 400px; }
@@ -1047,6 +1067,22 @@
       </div>
     </div>
     <div class="floating-badge bottom">
+      <div class="badge-icon orange">★</div>
+      <div class="badge-text">
+        <small>Ocena klientów</small>
+        <strong>4.9 / 5.0</strong>
+      </div>
+    </div>
+  </div>
+  <div class="hero-badges-mobile">
+    <div class="floating-badge-mobile">
+      <div class="badge-icon green">✓</div>
+      <div class="badge-text">
+        <small>Najbliższy termin</small>
+        <strong>Dziś, 14:30</strong>
+      </div>
+    </div>
+    <div class="floating-badge-mobile">
       <div class="badge-icon orange">★</div>
       <div class="badge-text">
         <small>Ocena klientów</small>
