@@ -244,16 +244,21 @@
       }
     }
 
+    // Query by date range only (no composite index needed).
+    // doctorId filtering is done client-side below.
     unsubscribeSlots = db.collection('slots')
       .where('date', '>=', startDate)
       .where('date', '<=', endDate)
-      .where('doctorId', '==', selectedDoctor.id)
       .onSnapshot(function(snapshot) {
         slotsCache = [];
-        snapshot.forEach(function(doc) { slotsCache.push(doc.data()); });
+        snapshot.forEach(function(doc) {
+          var d = doc.data();
+          if (d.doctorId === selectedDoctor.id) slotsCache.push(d);
+        });
         slotsReady = true;
         applyData();
-      }, function() {
+      }, function(err) {
+        console.error('Slots listener failed:', err);
         slotsReady = true;
         applyData();
       });
@@ -494,16 +499,16 @@
     var slotId = slotRef.id;
 
     db.runTransaction(function(transaction) {
-      // Fetch all slots for this doctor/date to check for overlap
+      // Fetch all slots for this date (filter doctor client-side — no composite index needed)
       return db.collection('slots')
         .where('date', '==', capturedDate)
-        .where('doctorId', '==', capturedDoctorId)
         .get()
         .then(function(snapshot) {
           var newStart = timeToMins(capturedTime);
           var newEnd = newStart + capturedDuration;
           snapshot.forEach(function(doc) {
             var d = doc.data();
+            if (d.doctorId !== capturedDoctorId) return;
             var existStart = timeToMins(d.time);
             var existEnd = existStart + (d.duration || SLOT_DURATION);
             if (newStart < existEnd && newEnd > existStart) {
