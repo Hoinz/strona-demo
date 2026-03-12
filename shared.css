@@ -1,0 +1,66 @@
+/* ── FONTS ── */
+@font-face{font-family:'DM Sans';font-style:normal;font-weight:300 600;font-display:swap;src:url(fonts/dmsans-latin-ext.woff2) format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:'DM Sans';font-style:normal;font-weight:300 600;font-display:swap;src:url(fonts/dmsans-latin.woff2) format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:'Playfair Display';font-style:italic;font-weight:400;font-display:swap;src:url(fonts/playfair-italic-latin-ext.woff2) format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:'Playfair Display';font-style:italic;font-weight:400;font-display:swap;src:url(fonts/playfair-italic-latin.woff2) format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:'Playfair Display';font-style:normal;font-weight:400 700;font-display:swap;src:url(fonts/playfair-latin-ext.woff2) format('woff2');unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:'Playfair Display';font-style:normal;font-weight:400 700;font-display:swap;src:url(fonts/playfair-latin.woff2) format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+
+/* ── RESET & BASE ── */
+:root{--cream:#FAF6F0;--warm-brown:#8B6F4E;--deep-olive:#3D4A3A;--soft-sage:#A8B5A0;--blush:#E8CFC0;--terra:#C4856A;--charcoal:#2A2A28;--white:#FFFFFF;--gold:#C9A96E}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--charcoal);overflow-x:hidden;line-height:1.7}
+h1,h2,h3,h4{font-family:'Playfair Display',serif;font-weight:400}
+
+/* ── SECTION LABEL ── */
+.section-label{font-size:.7rem;letter-spacing:.25em;text-transform:uppercase;color:var(--warm-brown);font-weight:600;margin-bottom:1rem}
+
+/* ── ANIMATIONS (hover/interactive only) ── */
+@keyframes iconBounce{0%,100%{transform:translateY(0)}40%{transform:translateY(-6px)}60%{transform:translateY(-3px)}}
+
+/* ── NAVBAR ── */
+nav{position:fixed;top:0;left:0;right:0;z-index:1000;padding:1.2rem 3rem;display:flex;justify-content:space-between;align-items:center;background:rgba(250,246,240,.85);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid rgba(139,111,78,.08);transition:all .4s ease}
+nav.scrolled{padding:.8rem 3rem;box-shadow:0 4px 30px rgba(0,0,0,.04)}
+.logo{display:flex;align-items:center;gap:.6rem;text-decoration:none;color:var(--charcoal)}
+.logo-icon{width:40px;height:40px;border-radius:50%;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;background:var(--white);box-shadow:0 4px 12px rgba(0,0,0,.08);flex-shrink:0;transition:transform .3s ease}
+.logo-icon img{width:100%;height:100%;object-fit:contain;display:block}
+.logo:hover .logo-icon{transform:rotate(-10deg) scale(1.05)}
+.logo-text{font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:700}
+.nav-links{display:flex;gap:2.5rem;align-items:center}
+.nav-links a{text-decoration:none;color:var(--charcoal);font-size:.85rem;font-weight:500;letter-spacing:.04em;position:relative;transition:color .3s}
+.nav-links a::after{content:'';position:absolute;bottom:-4px;left:0;width:0;height:1.5px;background:var(--terra);transition:width .35s cubic-bezier(.22,1,.36,1)}
+.nav-links a:hover{color:var(--terra)}
+.nav-links a:hover::after{width:100%}
+.nav-cta{background:var(--deep-olive)!important;color:var(--cream)!important;padding:.65rem 1.6rem;border-radius:50px;font-weight:500!important;transition:all .3s ease!important}
+.nav-cta::after{display:none!important}
+.nav-cta:hover{background:var(--charcoal)!important;transform:translateY(-1px)}
+.hamburger{display:none;flex-direction:column;gap:5px;cursor:pointer;background:none;border:none;padding:4px}
+.hamburger span{display:block;width:24px;height:2px;background:var(--charcoal);transition:all .3s ease}
+
+/* ── FOOTER ── */
+footer{background:var(--charcoal);color:rgba(255,255,255,.6);padding:4rem}
+.footer-grid{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:3rem;max-width:1200px;margin:0 auto 3rem}
+.footer-brand .logo-text{color:var(--cream)}
+.footer-brand .logo-icon{background:var(--terra)}
+.footer-brand p{margin-top:1rem;font-size:.88rem;line-height:1.7;max-width:300px}
+.footer-col h4{color:var(--cream);font-size:.95rem;margin-bottom:1.2rem}
+.footer-col a{display:block;color:rgba(255,255,255,.5);text-decoration:none;font-size:.85rem;margin-bottom:.7rem;transition:color .3s}
+.footer-col a:hover{color:var(--gold)}
+.footer-bottom{border-top:1px solid rgba(255,255,255,.08);padding-top:2rem;display:flex;justify-content:space-between;align-items:center;max-width:1200px;margin:0 auto;font-size:.8rem}
+.social-links{display:flex;gap:1rem}
+.social-link{width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;text-decoration:none;font-size:1rem;transition:all .3s ease;color:rgba(255,255,255,.5)}
+.social-link:hover{background:var(--terra);border-color:var(--terra);transform:translateY(-2px);color:var(--cream)}
+
+/* ── MOBILE NAV ── */
+.nav-links.active{display:flex;flex-direction:column;position:absolute;top:100%;left:0;right:0;background:var(--cream);padding:1.5rem 2rem;gap:.5rem;box-shadow:0 8px 30px rgba(0,0,0,.08);border-top:1px solid rgba(0,0,0,.05)}
+.hamburger.active span:nth-child(1){transform:rotate(45deg) translate(5px,5px)}
+.hamburger.active span:nth-child(2){opacity:0}
+.hamburger.active span:nth-child(3){transform:rotate(-45deg) translate(5px,-5px)}
+
+/* ── FOCUS ── */
+:focus-visible{outline:2px solid var(--terra);outline-offset:3px}
+button:focus-visible{outline-offset:2px}
+
+/* ── RESPONSIVE (shared) ── */
+@media(max-width:768px){nav{padding:1rem 1.5rem}.nav-links{display:none}.hamburger{display:flex}.footer-grid{grid-template-columns:1fr}.footer-bottom{flex-direction:column;gap:1rem;text-align:center}}
