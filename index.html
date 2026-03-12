@@ -338,7 +338,7 @@
     animation: pawPrint 1.5s ease 0.8s forwards;
     transform: translateY(var(--paw-offset)) scale(1) rotate(-15deg);
   }
-  .hero-content { max-width: 600px; z-index: 2; }
+  .hero-content { max-width: 600px; min-width: 0; z-index: 2; }
   .hero h1 {
     font-size: clamp(3rem, 5.5vw, 5rem);
     line-height: 1.08;
@@ -398,11 +398,13 @@
     display: flex;
     justify-content: center;
     align-items: center;
+    min-width: 0;
     animation: scaleIn 1.2s cubic-bezier(0.22, 1, 0.36, 1) 0.2s both;
   }
   .hero-card {
-    width: 420px;
-    height: 520px;
+    width: 100%;
+    max-width: 420px;
+    aspect-ratio: 420 / 520;
     background: linear-gradient(145deg, var(--blush), var(--soft-sage));
     border-radius: 240px 240px 40px 40px;
     position: relative;
@@ -979,7 +981,7 @@
   /* ──────── RESPONSIVE ──────── */
   @media (max-width: 1280px) {
     .hero { padding: 8rem 3rem 4rem; gap: 2rem; }
-    .hero-card { width: 340px; height: 430px; }
+    .hero-card { max-width: 340px; }
     .hero-emoji { font-size: 8rem; }
     .nav-links { gap: 1.5rem; }
     .floating-badge.top { right: -15px; }
