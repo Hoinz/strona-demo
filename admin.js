@@ -143,16 +143,17 @@
       });
       updateCountsFromData(counts);
 
+      // Build acceptedById lookup before renderBookings so click handlers can use it
+      var acceptedArr = allBookings.filter(function(b) { return b.status === 'accepted'; });
+      acceptedById = {};
+      acceptedArr.forEach(function(b) { acceptedById[b.id] = b; });
+
       // Filter for display
       var filtered = currentFilter === 'all'
         ? allBookings
         : allBookings.filter(function(b) { return b.status === currentFilter; });
       renderBookings(filtered);
 
-      // Render timeline from accepted bookings (no extra query)
-      var acceptedArr = allBookings.filter(function(b) { return b.status === 'accepted'; });
-      acceptedById = {};
-      acceptedArr.forEach(function(b) { acceptedById[b.id] = b; });
       renderTimeline(dateStr, acceptedArr);
     }, function() {
       bookingsList.innerHTML = '<div class="no-bookings">Błąd ładowania danych</div>';
@@ -178,7 +179,8 @@
         ' data-service="' + escapeAttr(b.service || '') + '"' +
         ' data-duration="' + escapeAttr(String(b.duration || '')) + '"';
 
-      return '<div class="booking-card status-' + escapeAttr(b.status) + '">' +
+      return '<div class="booking-card status-' + escapeAttr(b.status) + '"' +
+        (b.status === 'accepted' ? ' data-id="' + escapeAttr(b.id) + '"' : '') + '>' +
         '<div class="booking-info">' +
           '<span class="booking-status ' + escapeAttr(b.status) + '">' + statusLabel + '</span>' +
           '<h3>' + escapeHtml(b.patientName) + ' — ' + escapeHtml(b.petName) + '</h3>' +
@@ -220,6 +222,14 @@
     });
     bookingsList.querySelectorAll('.btn-reject').forEach(function(btn) {
       btn.addEventListener('click', function() { rejectBooking(this.dataset.id); });
+    });
+
+    // Accepted cards are clickable — open edit modal
+    bookingsList.querySelectorAll('.booking-card.status-accepted[data-id]').forEach(function(card) {
+      card.addEventListener('click', function() {
+        var booking = acceptedById[this.dataset.id];
+        if (booking) openApptModal(booking);
+      });
     });
   }
 

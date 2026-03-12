@@ -196,6 +196,7 @@
 }
 .booking-card.status-accepted {
   border-left: 4px solid var(--soft-sage);
+  cursor: pointer;
 }
 .booking-card.status-rejected {
   border-left: 4px solid #c62828;
@@ -519,7 +520,8 @@
     align-items: flex-start;
   }
   .admin-tabs {
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
   }
   .booking-actions {
     width: 100%;
