@@ -974,12 +974,24 @@
   }
 
   /* ──────── RESPONSIVE ──────── */
+  @media (max-width: 1280px) {
+    .hero { padding: 8rem 3rem 4rem; gap: 2rem; }
+    .hero-card { width: 340px; height: 430px; }
+    .hero-emoji { font-size: 8rem; }
+    .nav-links { gap: 1.5rem; }
+    .floating-badge.top { right: -15px; }
+    .floating-badge.bottom { left: -20px; }
+  }
   @media (max-width: 1024px) {
-    .hero { grid-template-columns: 1fr; padding: 8rem 2rem 3rem; text-align: center; }
+    nav { padding: 1rem 1.5rem; }
+    .nav-links { display: none; }
+    .hamburger { display: flex; }
+    .hero { grid-template-columns: 1fr; padding: 7rem 2rem 3rem; text-align: center; }
     .hero-content { max-width: 100%; }
     .hero p { margin: 0 auto 2.5rem; }
     .hero-buttons { justify-content: center; }
     .hero-visual { display: none; }
+    .hero::before { font-size: 12rem; right: -5%; top: 5%; }
     .hero-badges-mobile {
       display: flex;
       justify-content: center;
@@ -1006,11 +1018,9 @@
     .footer-grid { grid-template-columns: 1fr 1fr; }
   }
   @media (max-width: 768px) {
-    nav { padding: 1rem 1.5rem; }
-    .nav-links { display: none; }
-    .hamburger { display: flex; }
-    .hero { padding: 7rem 1.5rem 2rem; }
+    .hero { padding: 6.5rem 1.5rem 2rem; }
     .hero h1 { font-size: 2.5rem; }
+    .hero::before { font-size: 8rem; }
     .stats { grid-template-columns: repeat(2, 1fr); padding: 3rem 2rem; }
     .services, .team, .testimonials, .contact { padding: 4rem 1.5rem; }
     .services-grid { grid-template-columns: 1fr; }
