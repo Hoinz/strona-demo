@@ -9,7 +9,7 @@
 /* ── RESET & BASE ── */
 :root{--cream:#FAF6F0;--warm-brown:#8B6F4E;--deep-olive:#3D4A3A;--soft-sage:#A8B5A0;--blush:#E8CFC0;--terra:#C4856A;--charcoal:#2A2A28;--white:#FFFFFF;--gold:#C9A96E}
 *{margin:0;padding:0;box-sizing:border-box}
-html{scroll-behavior:smooth}
+html{scroll-behavior:smooth;scroll-padding-top:80px}
 body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--charcoal);overflow-x:hidden;line-height:1.7}
 h1,h2,h3,h4{font-family:'Playfair Display',serif;font-weight:400}
 
@@ -63,4 +63,4 @@ footer{background:var(--charcoal);color:rgba(255,255,255,.6);padding:4rem}
 button:focus-visible{outline-offset:2px}
 
 /* ── RESPONSIVE (shared) ── */
-@media(max-width:768px){nav{padding:1rem 1.5rem}.nav-links{display:none}.hamburger{display:flex}.footer-grid{grid-template-columns:1fr}.footer-bottom{flex-direction:column;gap:1rem;text-align:center}}
+@media(max-width:768px){html{scroll-padding-top:73px}nav{padding:1rem 1.5rem}.nav-links{display:none}.hamburger{display:flex}.footer-grid{grid-template-columns:1fr}.footer-bottom{flex-direction:column;gap:1rem;text-align:center}}
