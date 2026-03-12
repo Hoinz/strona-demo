@@ -126,6 +126,8 @@
     if (schedBtn) schedBtn.addEventListener('click', openScheduleModal);
     var viewSchedBtn = document.getElementById('btn-view-schedule');
     if (viewSchedBtn) viewSchedBtn.addEventListener('click', openViewScheduleModal);
+    var weekSchedBtn = document.getElementById('btn-week-schedule');
+    if (weekSchedBtn) weekSchedBtn.addEventListener('click', openWeekScheduleModal);
 
     loadBookings();
   }
@@ -1370,6 +1372,229 @@
 
   function closeViewScheduleModal() {
     var overlay = document.getElementById('view-sched-modal-overlay');
+    if (!overlay) return;
+    overlay.classList.remove('visible');
+    overlay.addEventListener('transitionend', function() {
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+    }, { once: true });
+  }
+
+  // ── WEEK SCHEDULE MODAL ──
+  function getWeekDates() {
+    var today = new Date();
+    var dow = today.getDay(); // 0=Sun
+    var diffToMon = (dow === 0) ? -6 : 1 - dow;
+    var monday = new Date(today);
+    monday.setDate(today.getDate() + diffToMon);
+    var dates = [];
+    for (var i = 0; i < 7; i++) {
+      var d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      dates.push(formatDateInput(d));
+    }
+    return dates;
+  }
+
+  function buildWeekLabel(mondayStr, sundayStr) {
+    var polishMonths = ['stycznia','lutego','marca','kwietnia','maja','czerwca',
+      'lipca','sierpnia','września','października','listopada','grudnia'];
+    var mParts = mondayStr.split('-');
+    var sParts = sundayStr.split('-');
+    var mDay = parseInt(mParts[2], 10);
+    var sDay = parseInt(sParts[2], 10);
+    var sMonth = polishMonths[parseInt(sParts[1], 10) - 1];
+    var sYear = sParts[0];
+    if (mParts[1] === sParts[1]) {
+      return mDay + '\u2013' + sDay + ' ' + sMonth + ' ' + sYear;
+    }
+    var mMonth = polishMonths[parseInt(mParts[1], 10) - 1];
+    return mDay + ' ' + mMonth + ' \u2013 ' + sDay + ' ' + sMonth + ' ' + sYear;
+  }
+
+  function buildWeekGrid(weekDates, apptsByDate, sched, todayStr) {
+    var dayNames = ['Poniedziałek','Wtorek','Środa','Czwartek','Piątek','Sobota','Niedziela'];
+    var dowForDate = [1,2,3,4,5,6,0]; // Mon=1..Sun=0 (JS getDay)
+
+    function getDayConfigLocal(dateStr, jsdow) {
+      if (!sched) return null;
+      if (sched.validFrom && dateStr < sched.validFrom) return null;
+      if (sched.validUntil && dateStr > sched.validUntil) return null;
+      return (sched.days && sched.days[dateStr]) ||
+             (sched.defaultWeek && sched.defaultWeek[String(jsdow)]) ||
+             (sched.weeklyHours && sched.weeklyHours[String(jsdow)]);
+    }
+
+    function apptCountLabel(n) {
+      if (n === 0) return '';
+      if (n === 1) return '1 wizyta';
+      if (n <= 4) return n + ' wizyty';
+      return n + ' wizyt';
+    }
+
+    var label = buildWeekLabel(weekDates[0], weekDates[6]);
+    var html = '<div class="week-sched-label">' + escapeHtml(label) + '</div>';
+    html += '<div class="week-sched-grid">';
+
+    weekDates.forEach(function(dateStr, idx) {
+      var jsdow = dowForDate[idx];
+      var cfg = getDayConfigLocal(dateStr, jsdow);
+      var isActive = cfg && cfg.active;
+      var isOff = cfg && !cfg.active;
+      var isToday = dateStr === todayStr;
+      var dayAppts = apptsByDate[dateStr] || [];
+      var busyBlocks = (sched && sched.busyBlocks)
+        ? sched.busyBlocks.filter(function(bb) { return bb.date === dateStr; })
+        : [];
+
+      var accepted = dayAppts.filter(function(a) { return a.status === 'accepted'; });
+      var pending = dayAppts.filter(function(a) { return a.status === 'pending'; });
+      var allAppts = accepted.concat(pending).sort(function(a, b) {
+        return timeToMins(a.time) - timeToMins(b.time);
+      });
+
+      var cardCls = 'week-day-card';
+      if (isToday) cardCls += ' week-day-today';
+      else if (isOff || (!cfg && !isActive)) cardCls += ' week-day-off';
+
+      var dateParts = dateStr.split('-');
+      var dateLabel = parseInt(dateParts[2], 10) + '.' + parseInt(dateParts[1], 10) + '.';
+
+      html += '<div class="' + cardCls + '">';
+      html += '<div class="week-day-header">';
+      html += '<span class="week-day-name">' + escapeHtml(dayNames[idx]) + '</span>';
+      html += '<span class="week-day-date">' + escapeHtml(dateLabel) + '</span>';
+      if (isToday) html += '<span class="week-day-today-badge">Dziś</span>';
+      html += '</div>';
+
+      if (isActive) {
+        html += '<div class="week-day-hours">' + escapeHtml(cfg.start) + '\u2013' + escapeHtml(cfg.end) + '</div>';
+        (cfg.pauses || []).forEach(function(p) {
+          html += '<div class="week-day-pause">Przerwa: ' + escapeHtml(p.start) + '\u2013' + escapeHtml(p.end) + '</div>';
+        });
+      } else if (isOff) {
+        html += '<div class="week-day-off-label">Dzień wolny</div>';
+      } else {
+        html += '<div class="week-day-off-label">Brak grafiku</div>';
+      }
+
+      busyBlocks.forEach(function(bb) {
+        html += '<div class="week-day-busy">\uD83D\uDEAB Blokada: ' + escapeHtml(bb.startTime) + '\u2013' + escapeHtml(bb.endTime) + '</div>';
+      });
+
+      if (allAppts.length > 0) {
+        html += '<div class="week-appt-count">' + escapeHtml(apptCountLabel(allAppts.length)) + '</div>';
+        html += '<div class="week-appt-list">';
+        allAppts.forEach(function(a) {
+          var endTime = minsToTime(timeToMins(a.time) + (a.duration || 20));
+          var cls = 'week-appt-item ' + (a.status === 'accepted' ? 'week-appt-accepted' : 'week-appt-pending');
+          html += '<div class="' + cls + '">';
+          html += '<div class="week-appt-time">' + escapeHtml(a.time) + '\u2013' + escapeHtml(endTime) + '</div>';
+          html += '<div class="week-appt-patient">' + escapeHtml(a.patientName || '') + ' / ' + escapeHtml(a.petName || '') + '</div>';
+          html += '<div class="week-appt-service">' + escapeHtml(getServiceName(a.service)) + '</div>';
+          html += '</div>';
+        });
+        html += '</div>';
+      }
+
+      html += '</div>';
+    });
+
+    html += '</div>';
+    html += '<div class="week-sched-legend">';
+    html += '<span class="week-leg-item week-leg-accepted">Potwierdzona</span>';
+    html += '<span class="week-leg-item week-leg-pending">Oczekująca</span>';
+    html += '<span class="week-leg-item week-leg-busy">Blokada</span>';
+    html += '</div>';
+    return html;
+  }
+
+  function openWeekScheduleModal() {
+    var existing = document.getElementById('week-sched-modal-overlay');
+    if (existing) existing.parentNode.removeChild(existing);
+
+    var weekDates = getWeekDates();
+    var todayStr = formatDateInput(new Date());
+    var myId = currentUser.uid;
+    var selectedDoctorId = myId;
+
+    var doctorList = allDoctors.length > 0 ? allDoctors : [{ id: myId, name: doctorName || 'Mój grafik' }];
+    var doctorOptions = doctorList.map(function(d) {
+      return '<option value="' + escapeAttr(d.id) + '"' + (d.id === myId ? ' selected' : '') + '>' + escapeHtml(d.name) + '</option>';
+    }).join('');
+
+    var overlay = document.createElement('div');
+    overlay.id = 'week-sched-modal-overlay';
+    overlay.className = 'appt-modal-overlay';
+    overlay.innerHTML =
+      '<div class="appt-modal week-sched-modal">' +
+        '<div class="appt-modal-header">' +
+          '<h3 class="appt-modal-title">Harmonogram na ten tydzień</h3>' +
+          '<button class="appt-modal-close">&times;</button>' +
+        '</div>' +
+        '<div class="appt-modal-body">' +
+          '<div class="view-sched-selector">' +
+            '<label class="view-sched-label">Lekarz:</label>' +
+            '<select id="week-sched-doctor" class="view-sched-select">' + doctorOptions + '</select>' +
+          '</div>' +
+          '<div id="week-sched-content"><div class="week-sched-loading">Ładowanie wizyt\u2026</div></div>' +
+        '</div>' +
+      '</div>';
+
+    document.body.appendChild(overlay);
+    requestAnimationFrame(function() { overlay.classList.add('visible'); });
+
+    var modal = overlay.querySelector('.week-sched-modal');
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) closeWeekScheduleModal(); });
+    modal.querySelector('.appt-modal-close').addEventListener('click', closeWeekScheduleModal);
+
+    function fetchAndRender(doctorId) {
+      var contentEl = overlay.querySelector('#week-sched-content');
+      contentEl.innerHTML = '<div class="week-sched-loading">Ładowanie wizyt\u2026</div>';
+
+      function renderWithSched(sched) {
+        window.PawsomeDB.collection('appointments')
+          .where('doctorId', '==', doctorId)
+          .where('date', '>=', weekDates[0])
+          .where('date', '<=', weekDates[6])
+          .get()
+          .then(function(snap) {
+            var apptsByDate = {};
+            snap.forEach(function(doc) {
+              var a = doc.data();
+              if (a.status !== 'accepted' && a.status !== 'pending') return;
+              if (!apptsByDate[a.date]) apptsByDate[a.date] = [];
+              apptsByDate[a.date].push(a);
+            });
+            contentEl.innerHTML = buildWeekGrid(weekDates, apptsByDate, sched, todayStr);
+          })
+          .catch(function() {
+            contentEl.innerHTML = '<div class="week-sched-loading">Błąd ładowania wizyt.</div>';
+          });
+      }
+
+      if (doctorScheduleCache[doctorId]) {
+        renderWithSched(doctorScheduleCache[doctorId]);
+      } else {
+        window.PawsomeDB.collection('doctorSchedules').doc(doctorId).get()
+          .then(function(doc) {
+            var sched = doc.exists ? doc.data() : null;
+            if (sched) doctorScheduleCache[doctorId] = sched;
+            renderWithSched(sched);
+          })
+          .catch(function() { renderWithSched(null); });
+      }
+    }
+
+    overlay.querySelector('#week-sched-doctor').addEventListener('change', function() {
+      selectedDoctorId = this.value;
+      fetchAndRender(selectedDoctorId);
+    });
+
+    fetchAndRender(selectedDoctorId);
+  }
+
+  function closeWeekScheduleModal() {
+    var overlay = document.getElementById('week-sched-modal-overlay');
     if (!overlay) return;
     overlay.classList.remove('visible');
     overlay.addEventListener('transitionend', function() {
