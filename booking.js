@@ -46,6 +46,8 @@
   var scheduleOverrides = {};
   var selectedDoctor = null;   // { id, name, specialty }
   var doctors = [];
+  var unsubscribeSlots = null;
+  var unsubscribeSchedule = null;
 
   // ── DOM ──
   var calendarDays = document.getElementById('calendar-days');
@@ -171,33 +173,32 @@
     loadMonthData();
   }
 
-  // ── LOAD DATA FROM FIRESTORE ──
+  // ── LOAD DATA FROM FIRESTORE (real-time listeners) ──
   function loadMonthData() {
     var db = window.PawsomeDB;
+
+    // Tear down previous listeners before setting up new ones
+    if (unsubscribeSlots) { unsubscribeSlots(); unsubscribeSlots = null; }
+    if (unsubscribeSchedule) { unsubscribeSchedule(); unsubscribeSchedule = null; }
+
     if (!db || !selectedDoctor) { renderCalendar(); return; }
 
     var startDate = formatDate(currentYear, currentMonth, 1);
     var lastDay = new Date(currentYear, currentMonth + 1, 0).getDate();
     var endDate = formatDate(currentYear, currentMonth, lastDay);
 
-    // Clear stale data for this month range
-    var monthTaken = {};
-    var monthOverrides = {};
+    // Local caches for each listener; merged in applyData()
+    var slotsCache = [];
+    var overridesCache = {};
+    var slotsReady = false;
+    var scheduleReady = false;
 
-    // Parallel queries for slots and schedule
-    Promise.all([
-      db.collection('slots')
-        .where('date', '>=', startDate)
-        .where('date', '<=', endDate)
-        .where('doctorId', '==', selectedDoctor.id)
-        .get(),
-      db.collection('schedule')
-        .where(firebase.firestore.FieldPath.documentId(), '>=', startDate)
-        .where(firebase.firestore.FieldPath.documentId(), '<=', endDate)
-        .get()
-    ]).then(function(results) {
-      results[0].forEach(function(doc) {
-        var d = doc.data();
+    function applyData() {
+      if (!slotsReady || !scheduleReady) return;
+
+      // Rebuild takenSlots from live slot documents
+      var monthTaken = {};
+      slotsCache.forEach(function(d) {
         var duration = d.duration || SLOT_DURATION;
         var startMins = timeToMins(d.time);
         for (var m = startMins; m < startMins + duration; m += SLOT_DURATION) {
@@ -208,26 +209,67 @@
           if (!monthTaken[d.date].includes(t)) monthTaken[d.date].push(t);
         }
       });
-      results[1].forEach(function(doc) {
-        monthOverrides[doc.id] = doc.data();
-      });
 
-      // Replace (not accumulate) data for this month
-      Object.keys(monthTaken).forEach(function(k) { takenSlots[k] = monthTaken[k]; });
-      Object.keys(monthOverrides).forEach(function(k) { scheduleOverrides[k] = monthOverrides[k]; });
-
-      // Clean out dates no longer in the fetched range that belong to this month
+      // Clear this month's stale entries then apply fresh data
       Object.keys(takenSlots).forEach(function(k) {
-        if (k >= startDate && k <= endDate && !monthTaken[k]) delete takenSlots[k];
+        if (k >= startDate && k <= endDate) delete takenSlots[k];
       });
       Object.keys(scheduleOverrides).forEach(function(k) {
-        if (k >= startDate && k <= endDate && !monthOverrides[k]) delete scheduleOverrides[k];
+        if (k >= startDate && k <= endDate) delete scheduleOverrides[k];
       });
+      Object.keys(monthTaken).forEach(function(k) { takenSlots[k] = monthTaken[k]; });
+      Object.keys(overridesCache).forEach(function(k) { scheduleOverrides[k] = overridesCache[k]; });
 
       renderCalendar();
-    }).catch(function() {
-      renderCalendar();
-    });
+
+      // Re-render open time slots panel if it's showing a date in this month
+      if (selectedDate && selectedDate >= startDate && selectedDate <= endDate) {
+        var parts = selectedDate.split('-');
+        var dow = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2])).getDay();
+        renderTimeSlots(selectedDate, dow);
+
+        if (selectedTime) {
+          var nowTaken = takenSlots[selectedDate] || [];
+          if (nowTaken.includes(selectedTime)) {
+            // Slot just got taken by someone else — clear selection
+            selectedTime = null;
+            formSection.classList.remove('visible');
+          } else {
+            // Re-apply the selected highlight lost during re-render
+            timeSlotsGrid.querySelectorAll('.time-slot').forEach(function(b) {
+              if (b.textContent === selectedTime) b.classList.add('selected');
+            });
+          }
+        }
+      }
+    }
+
+    unsubscribeSlots = db.collection('slots')
+      .where('date', '>=', startDate)
+      .where('date', '<=', endDate)
+      .where('doctorId', '==', selectedDoctor.id)
+      .onSnapshot(function(snapshot) {
+        slotsCache = [];
+        snapshot.forEach(function(doc) { slotsCache.push(doc.data()); });
+        slotsReady = true;
+        applyData();
+      }, function() {
+        slotsReady = true;
+        applyData();
+      });
+
+    unsubscribeSchedule = db.collection('schedule')
+      .where(firebase.firestore.FieldPath.documentId(), '>=', startDate)
+      .where(firebase.firestore.FieldPath.documentId(), '<=', endDate)
+      .onSnapshot(function(snapshot) {
+        overridesCache = {};
+        snapshot.forEach(function(doc) { overridesCache[doc.id] = doc.data(); });
+        scheduleReady = true;
+        applyData();
+      }, function() {
+        scheduleReady = true;
+        applyData();
+      });
   }
 
   // ── RENDER CALENDAR ──
