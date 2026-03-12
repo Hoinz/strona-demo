@@ -69,8 +69,8 @@
     var password = document.getElementById('login-password').value;
 
     window.PawsomeAuth.signInWithEmailAndPassword(email, password)
-      .catch(function(err) {
-        loginError.textContent = 'Błąd: ' + err.code;
+      .catch(function() {
+        loginError.textContent = 'Nieprawidłowy email lub hasło';
         loginError.classList.add('visible');
       });
   });
