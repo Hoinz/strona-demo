@@ -1561,20 +1561,23 @@
       var contentEl = overlay.querySelector('#week-sched-content');
       contentEl.innerHTML = '<div class="week-sched-loading">Ładowanie wizyt\u2026</div>';
 
-      // Always query by date range only — avoids composite index requirement.
-      // Filter by doctor client-side when a specific doctor is selected.
-      window.PawsomeDB.collection('appointments')
-        .where('date', '>=', weekDates[0])
-        .where('date', '<=', weekDates[6])
-        .get()
-        .then(function(snap) {
+      var promises = weekDates.map(function(dateStr) {
+        return window.PawsomeDB.collection('appointments')
+          .where('date', '==', dateStr)
+          .get();
+      });
+      Promise.all(promises)
+        .then(function(snaps) {
           var apptsByDate = {};
-          snap.forEach(function(doc) {
-            var a = doc.data();
-            if (a.status !== 'accepted' && a.status !== 'pending') return;
-            if (doctorId !== 'all' && a.doctorId !== doctorId) return;
-            if (!apptsByDate[a.date]) apptsByDate[a.date] = [];
-            apptsByDate[a.date].push(a);
+          snaps.forEach(function(snap, i) {
+            var dateStr = weekDates[i];
+            snap.forEach(function(doc) {
+              var a = doc.data();
+              if (a.status !== 'accepted' && a.status !== 'pending') return;
+              if (doctorId !== 'all' && a.doctorId !== doctorId) return;
+              if (!apptsByDate[dateStr]) apptsByDate[dateStr] = [];
+              apptsByDate[dateStr].push(a);
+            });
           });
           var filterArg = doctorId !== 'all' ? doctorId : null;
           contentEl.innerHTML = buildWeekGrid(weekDates, apptsByDate, filterArg, todayStr, doctorNameMap);
