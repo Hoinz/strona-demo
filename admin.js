@@ -879,7 +879,7 @@
         var bb = sched.busyBlocks[k];
         if (bb.date !== date) continue;
         if (vStart < timeToMins(bb.endTime) && vEnd > timeToMins(bb.startTime))
-          return 'Koliduje z blokad\u0105 ' + bb.startTime + ' \u2013 ' + bb.endTime + '.';
+          return 'Wizyta przypada na zablokowany czas lekarza (' + bb.startTime + '\u2013' + bb.endTime + '). Wybierz inną godzinę.';
       }
     }
     // Period check applies to the weekly schedule
@@ -890,16 +890,16 @@
               (sched.defaultWeek && sched.defaultWeek[dow]) ||
               (sched.weeklyHours && sched.weeklyHours[dow]);
     if (!day) return null;
-    if (!day.active) return 'Lekarz nie pracuje w tym dniu.';
+    if (!day.active) return 'Lekarz nie pracuje w wybranym dniu.';
     var wStart = timeToMins(day.start), wEnd = timeToMins(day.end);
     if (vStart < wStart || vEnd > wEnd)
-      return 'Poza godzinami pracy (' + day.start + ' \u2013 ' + day.end + ').';
+      return 'Godzina wizyty wykracza poza godziny pracy lekarza (' + day.start + '\u2013' + day.end + '). Wybierz inną godzinę.';
     var pauses = day.pauses || [];
     for (var i = 0; i < pauses.length; i++) {
       var p = pauses[i];
       var ps = timeToMins(p.start), pe = timeToMins(p.end);
       if (vStart < pe && vEnd > ps)
-        return 'Koliduje z przerw\u0105 ' + p.start + ' \u2013 ' + p.end + '.';
+        return 'Wizyta przypada na przerwę lekarza (' + p.start + '\u2013' + p.end + '). Wybierz inną godzinę.';
     }
     return null;
   }
