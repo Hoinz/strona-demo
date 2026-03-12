@@ -511,21 +511,7 @@
 /* ── RESPONSIVE ── */
 @media (max-width: 768px) {
   .admin-page {
-    padding: 7rem 0 2rem;
-    overflow-x: auto;
-  }
-  /* Login card keeps its own side spacing */
-  .admin-login {
-    margin-left: 1.5rem;
-    margin-right: 1.5rem;
-  }
-  /* Dashboard expands to fit widest child (the schedule in all-mode);
-     all block children then naturally fill that same width */
-  .admin-dashboard {
-    padding: 0 1.5rem;
-    width: max-content;
-    min-width: 100%;
-    box-sizing: border-box;
+    padding: 7rem 1.5rem 2rem;
   }
   .booking-card {
     grid-template-columns: 1fr;
