@@ -63,4 +63,5 @@ footer{background:var(--charcoal);color:rgba(255,255,255,.6);padding:4rem}
 button:focus-visible{outline-offset:2px}
 
 /* ── RESPONSIVE (shared) ── */
+@media(max-width:1024px){nav{padding:1rem 2rem}.nav-links{gap:1.5rem}}
 @media(max-width:768px){html{scroll-padding-top:73px}nav{padding:1rem 1.5rem}.nav-links{display:none}.hamburger{display:flex}.footer-grid{grid-template-columns:1fr}.footer-bottom{flex-direction:column;gap:1rem;text-align:center}}

@@ -441,3 +441,8 @@
     font-size: 0.85rem;
   }
 }
+@media (max-width: 480px) {
+  .doctor-grid { grid-template-columns: 1fr; }
+  .calendar, .time-slots-section, .booking-form-section { padding: 1rem; }
+  .time-slots-group { grid-template-columns: 40px 1fr; }
+}

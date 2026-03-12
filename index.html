@@ -597,16 +597,23 @@
     .team-grid { grid-template-columns: repeat(2, 1fr); }
     .testimonials-grid { grid-template-columns: 1fr; max-width: 600px; }
     .contact-wrapper { grid-template-columns: 1fr; }
+    .services, .team, .testimonials, .contact { padding: 5rem 2rem; }
   }
   @media (max-width: 768px) {
     .hero { padding: 6.5rem 1.5rem 2rem; }
     .hero h1 { font-size: 2.5rem; }
     .hero::before { font-size: 8rem; }
+    .hero-buttons { flex-wrap: wrap; justify-content: center; }
     .stats { grid-template-columns: repeat(2, 1fr); padding: 3rem 2rem; }
     .services, .team, .testimonials, .contact { padding: 4rem 1.5rem; }
     .services-grid { grid-template-columns: 1fr; }
-    .team-grid { grid-template-columns: 1fr; max-width: 320px; }
+    .team-grid { grid-template-columns: 1fr; margin: 0 auto; }
     .values { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 480px) {
+    .stats { padding: 2rem 1.5rem; }
+    .stat-number { font-size: 2.2rem; }
+    .about-content { padding: 3rem 1.5rem; }
   }
 </style>
 </head>

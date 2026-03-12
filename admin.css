@@ -115,6 +115,7 @@
   align-items: center;
   gap: 1rem;
   margin-bottom: 2rem;
+  flex-wrap: wrap;
 }
 .admin-date-picker label {
   font-weight: 500;
@@ -309,6 +310,8 @@
   margin-top: 3rem;
   border-top: 1px solid rgba(0,0,0,0.06);
   padding-top: 2rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .schedule-title {
   font-size: 1.05rem;
@@ -1219,3 +1222,19 @@
   word-break: break-all;
 }
 .vs-leg-busy::before { background: rgba(198,40,40,0.2); border: 1px solid rgba(198,40,40,0.35); }
+
+/* ── ADDITIONAL RESPONSIVE ── */
+@media (max-width: 768px) {
+  .sch-column { min-width: 140px; }
+  .sch-col-header { min-width: 140px; }
+}
+@media (max-width: 500px) {
+  .admin-header-actions { flex-wrap: wrap; }
+  .btn-schedule, .btn-view-schedule { flex: 1; text-align: center; }
+  .sched-modal { max-width: 100% !important; }
+  .view-sched-modal { max-width: 100% !important; }
+}
+@media (max-width: 480px) {
+  .vs-cal-cell { min-height: 44px; font-size: 0.65rem; }
+  .vs-cal-day-num { font-size: 0.6rem; }
+}
