@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Panel administracyjny — Pawsome</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#FAF6F0">
+<link rel="icon" type="image/png" href="logo.png">
+<link rel="preload" href="fonts/dmsans-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/playfair-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="shared.css">
+<link rel="stylesheet" href="admin.css">
+</head>
+<body>
+
+<nav id="navbar">
+  <a href="index.html" class="logo">
+    <div class="logo-icon">
+      <img src="logo.png" alt="Logo Pawsome">
+    </div>
+    <span class="logo-text">Pawsome</span>
+  </a>
+  <div class="nav-links" id="nav-links">
+    <a href="index.html#uslugi">Usługi</a>
+    <a href="index.html#o-nas">O nas</a>
+    <a href="index.html#zespol">Zespół</a>
+    <a href="index.html#opinie">Opinie</a>
+    <a href="umow-wizyte.html" class="nav-cta">Umów wizytę 📅</a>
+  </div>
+  <button class="hamburger" aria-label="Menu" aria-expanded="false" aria-controls="nav-links">
+    <span></span><span></span><span></span>
+  </button>
+</nav>
+
+<main class="admin-page">
+
+  <!-- Login View -->
+  <div id="admin-login" class="admin-login">
+    <h1>Panel Admina</h1>
+    <p class="subtitle">Zaloguj się, aby zarządzać rezerwacjami</p>
+    <div id="login-error" class="login-error"></div>
+    <form id="login-form">
+      <div class="form-group">
+        <label for="login-email">Email</label>
+        <input type="email" id="login-email" required placeholder="admin@pawsomevet.pl">
+      </div>
+      <div class="form-group">
+        <label for="login-password">Hasło</label>
+        <input type="password" id="login-password" required placeholder="••••••••">
+      </div>
+      <button type="submit" class="btn-login">Zaloguj się</button>
+    </form>
+  </div>
+
+  <!-- Dashboard View -->
+  <div id="admin-dashboard" class="admin-dashboard">
+    <div class="admin-header">
+      <h1>Rezerwacje</h1>
+      <button id="btn-logout" class="btn-logout">Wyloguj się</button>
+    </div>
+
+    <div class="admin-date-picker">
+      <label for="admin-date">Data:</label>
+      <input type="date" id="admin-date">
+    </div>
+
+    <div class="admin-tabs">
+      <button class="admin-tab active" data-filter="pending">Oczekujące <span class="count">0</span></button>
+      <button class="admin-tab" data-filter="accepted">Potwierdzone <span class="count">0</span></button>
+      <button class="admin-tab" data-filter="rejected">Odrzucone <span class="count">0</span></button>
+      <button class="admin-tab" data-filter="all">Wszystkie <span class="count">0</span></button>
+    </div>
+
+    <div class="bookings-list" id="bookings-list">
+      <div class="no-bookings">Ładowanie...</div>
+    </div>
+
+    <div class="timeline" id="timeline"></div>
+  </div>
+
+</main>
+
+<script>
+  const navbar = document.getElementById('navbar');
+  const hamburger = document.querySelector('.hamburger');
+  const navLinks = document.querySelector('.nav-links');
+  window.addEventListener('scroll', () => { navbar.classList.toggle('scrolled', window.scrollY > 40); });
+  hamburger.addEventListener('click', () => {
+    const isOpen = navLinks.classList.toggle('active');
+    hamburger.classList.toggle('active');
+    hamburger.setAttribute('aria-expanded', isOpen);
+  });
+  navLinks.querySelectorAll('a').forEach(link => {
+    link.addEventListener('click', () => {
+      navLinks.classList.remove('active');
+      hamburger.classList.remove('active');
+      hamburger.setAttribute('aria-expanded', 'false');
+    });
+  });
+</script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script src="admin.js"></script>
+</body>
+</html>

@@ -628,7 +628,7 @@
     <a href="#o-nas">O nas</a>
     <a href="#zespol">Zespół</a>
     <a href="#opinie">Opinie</a>
-    <a href="mailto:hello@pawsomevet.pl?subject=Wiadomo%C5%9B%C4%87%20ze%20strony%20Pawsome" class="nav-cta">Napisz do nas ✉</a>
+    <a href="umow-wizyte.html" class="nav-cta">Umów wizytę 📅</a>
   </div>
   <button class="hamburger" aria-label="Menu" aria-expanded="false" aria-controls="nav-links">
     <span></span><span></span><span></span>
@@ -643,7 +643,7 @@
     <h1>Gdzie Każda <em>Łapka</em> Ma Swoją Historię</h1>
     <p>Nowoczesna weterynaria pełna empatii, dopasowana do indywidualnych potrzeb Twojego pupila. Bo rodzina to nie zawsze ludzie.</p>
     <div class="hero-buttons">
-      <a href="mailto:hello@pawsomevet.pl?subject=Wiadomo%C5%9B%C4%87%20ze%20strony%20Pawsome" class="btn-primary">Napisz do nas →</a>
+      <a href="umow-wizyte.html" class="btn-primary">Umów wizytę →</a>
       <a href="#uslugi" class="btn-secondary">Nasze usługi</a>
     </div>
   </div>
@@ -799,13 +799,13 @@
       <div class="team-avatar ta-3">👨‍🔬</div>
       <h3>lek. wet. Tomasz Nowak</h3>
       <p>Dermatologia</p>
-      <div class="bio">Ekspert od alergii, chorób skóry i zaburzeń immunologicznych.</div>
+      <div class="bio">Ekspertk od alergii, chorób skóry i zaburzeń immunologicznych.</div>
     </div>
     <div class="team-member">
       <div class="team-avatar ta-4">👩‍⚕️</div>
       <h3>lek. wet. Magdalena Leszczowska</h3>
       <p>Opieka nagła</p>
-      <div class="bio">Weterynarz, który naprawdę wie, co znaczy płynąć pod prąd.</div>
+      <div class="bio">Może i jestem leszczem. ale przynajmniej lubią mnie koty.</div>
     </div>
   </div>
 </section>
@@ -965,6 +965,30 @@
     });
   });
 
+</script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js" defer></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js" defer></script>
+<script src="firebase-config.js" defer></script>
+<script src="booking.js" defer></script>
+<script>
+// Dynamic "next free term" badge
+window.addEventListener('load', function() {
+  if (window.PawsomeBooking && window.PawsomeBooking.getNextFreeTerm) {
+    window.PawsomeBooking.getNextFreeTerm(function(label) {
+      if (!label) return;
+      // Update desktop badge
+      var desktopBadge = document.querySelector('.floating-badge.top .badge-text strong');
+      if (desktopBadge) desktopBadge.textContent = label;
+      // Update mobile badge
+      var mobileBadges = document.querySelectorAll('.floating-badge-mobile .badge-text strong');
+      mobileBadges.forEach(function(el) {
+        if (el.closest('.floating-badge-mobile').querySelector('.badge-icon.green')) {
+          el.textContent = label;
+        }
+      });
+    });
+  }
+});
 </script>
 <script>if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js')</script>
 </body>

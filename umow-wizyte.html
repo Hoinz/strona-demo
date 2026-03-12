@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Umów wizytę — Pawsome Klinika Weterynaryjna</title>
+<meta name="description" content="Zarezerwuj wizytę w klinice Pawsome. Wybierz termin, usługę i umów się online — szybko i wygodnie.">
+<meta name="theme-color" content="#FAF6F0">
+<link rel="icon" type="image/png" href="logo.png">
+<link rel="preload" href="fonts/dmsans-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/playfair-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="shared.css">
+<link rel="stylesheet" href="booking.css">
+</head>
+<body>
+
+<nav id="navbar">
+  <a href="index.html" class="logo">
+    <div class="logo-icon">
+      <img src="logo.png" alt="Logo Pawsome">
+    </div>
+    <span class="logo-text">Pawsome</span>
+  </a>
+  <div class="nav-links" id="nav-links">
+    <a href="index.html#uslugi">Usługi</a>
+    <a href="index.html#o-nas">O nas</a>
+    <a href="index.html#zespol">Zespół</a>
+    <a href="index.html#opinie">Opinie</a>
+    <a href="umow-wizyte.html" class="nav-cta">Umów wizytę 📅</a>
+  </div>
+  <button class="hamburger" aria-label="Menu" aria-expanded="false" aria-controls="nav-links">
+    <span></span><span></span><span></span>
+  </button>
+</nav>
+
+<main class="booking-page">
+  <h1>Umów Wizytę</h1>
+  <p class="booking-subtitle">Wybierz datę i godzinę, a my potwierdzimy Twój termin.</p>
+
+  <div id="offline-notice" class="offline-notice">
+    Rezerwacja wymaga połączenia z internetem. Sprawdź połączenie i odśwież stronę.
+  </div>
+
+  <!-- Calendar -->
+  <div class="calendar">
+    <div class="calendar-header">
+      <button class="calendar-nav" id="cal-prev" aria-label="Poprzedni miesiąc">‹</button>
+      <h2 id="calendar-title"></h2>
+      <button class="calendar-nav" id="cal-next" aria-label="Następny miesiąc">›</button>
+    </div>
+    <div class="calendar-weekdays">
+      <span>Pn</span><span>Wt</span><span>Śr</span><span>Cz</span><span>Pt</span><span>Sb</span><span>Nd</span>
+    </div>
+    <div class="calendar-days" id="calendar-days"></div>
+  </div>
+
+  <!-- Time Slots -->
+  <div class="time-slots-section" id="time-slots-section">
+    <h3>Dostępne godziny — <span id="time-slots-date"></span></h3>
+    <div class="time-slots-grid" id="time-slots-grid"></div>
+  </div>
+
+  <!-- Booking Form -->
+  <div class="booking-form-section" id="booking-form-section">
+    <h3>Dane do rezerwacji</h3>
+    <div class="booking-summary" id="booking-summary"></div>
+    <form id="booking-form">
+      <div class="form-row">
+        <div class="form-group">
+          <label for="field-name">Imię i nazwisko</label>
+          <input type="text" id="field-name" required placeholder="Jan Kowalski">
+        </div>
+        <div class="form-group">
+          <label for="field-pet">Imię pupila</label>
+          <input type="text" id="field-pet" required placeholder="Burek">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="field-phone">Telefon</label>
+          <input type="tel" id="field-phone" required placeholder="+48 123 456 789">
+        </div>
+        <div class="form-group">
+          <label for="field-email">Email</label>
+          <input type="email" id="field-email" required placeholder="jan@example.com">
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="field-service">Rodzaj usługi</label>
+        <select id="field-service" required>
+          <option value="">— Wybierz usługę —</option>
+          <option value="badania-profilaktyczne">Badania profilaktyczne</option>
+          <option value="szczepienia">Szczepienia</option>
+          <option value="stomatologia">Stomatologia</option>
+          <option value="chirurgia">Chirurgia</option>
+          <option value="diagnostyka">Diagnostyka</option>
+          <option value="plany-zywieniowe">Plany żywieniowe</option>
+        </select>
+      </div>
+      <button type="submit" class="btn-submit">Zarezerwuj wizytę</button>
+    </form>
+  </div>
+
+  <!-- Success/Error Message -->
+  <div class="booking-message" id="booking-message"></div>
+</main>
+
+<footer>
+  <div class="footer-grid">
+    <div class="footer-brand">
+      <a href="index.html" class="logo">
+        <div class="logo-icon">
+          <img src="logo.png" alt="Logo Pawsome">
+        </div>
+        <span class="logo-text">Pawsome</span>
+      </a>
+      <p>Weterynaria pełna empatii, w której Twój pupil traktowany jest jak rodzina. Obsługujemy Toruń i okolice od 2009 roku.</p>
+    </div>
+    <div class="footer-col">
+      <h4>Usługi</h4>
+      <a href="badania-profilaktyczne.html">Badania profilaktyczne</a>
+      <a href="szczepienia.html">Szczepienia</a>
+      <a href="stomatologia.html">Stomatologia</a>
+      <a href="chirurgia.html">Chirurgia</a>
+      <a href="diagnostyka.html">Diagnostyka</a>
+    </div>
+    <div class="footer-col">
+      <h4>Klinika</h4>
+      <a href="index.html#o-nas">O nas</a>
+      <a href="index.html#zespol">Nasz zespół</a>
+      <a href="index.html#opinie">Opinie</a>
+    </div>
+    <div class="footer-col">
+      <h4>Kontakt</h4>
+      <a href="mailto:hello@pawsomevet.pl">E-mail</a>
+      <a href="tel:+48225557799">Telefon</a>
+      <a href="index.html#kontakt">Dane kontaktowe</a>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>&copy; 2026 Pawsome Klinika Weterynaryjna. Wszelkie prawa zastrzeżone.</span>
+    <div class="social-links">
+      <a href="#" class="social-link" aria-label="Facebook">f</a>
+      <a href="#" class="social-link" aria-label="Instagram">ig</a>
+      <a href="#" class="social-link" aria-label="Twitter">𝕏</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  const navbar = document.getElementById('navbar');
+  const hamburger = document.querySelector('.hamburger');
+  const navLinks = document.querySelector('.nav-links');
+  window.addEventListener('scroll', () => { navbar.classList.toggle('scrolled', window.scrollY > 40); });
+  hamburger.addEventListener('click', () => {
+    const isOpen = navLinks.classList.toggle('active');
+    hamburger.classList.toggle('active');
+    hamburger.setAttribute('aria-expanded', isOpen);
+  });
+  navLinks.querySelectorAll('a').forEach(link => {
+    link.addEventListener('click', () => {
+      navLinks.classList.remove('active');
+      hamburger.classList.remove('active');
+      hamburger.setAttribute('aria-expanded', 'false');
+    });
+  });
+</script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js" defer></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js" defer></script>
+<script src="firebase-config.js" defer></script>
+<script src="booking.js" defer></script>
+<script>if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js')</script>
+</body>
+</html>
