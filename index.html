@@ -7,7 +7,7 @@
 <meta name="description" content="Pawsome — nowoczesna klinika weterynaryjna w Toruniu. Profesjonalna opieka pełna empatii: badania, szczepienia, chirurgia, stomatologia i opieka nagła 24/7.">
 <meta name="theme-color" content="#FAF6F0">
 <link rel="canonical" href="https://pawsomevet.pl/">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐾</text></svg>">
+<link rel="icon" type="image/png" href="logo.png">
 <meta property="og:title" content="Pawsome — Klinika Weterynaryjna">
 <meta property="og:description" content="Nowoczesna weterynaria pełna empatii w Toruniu. Opieka szyta na miarę dla Twojego pupila.">
 <meta property="og:type" content="website">
@@ -507,6 +507,26 @@
     margin-top: 0.5rem;
   }
 
+  /* ──────── LOGO ICON ──────── */
+  .logo-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    overflow: hidden;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--white);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    flex-shrink: 0;
+  }
+  .logo-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+  }
+
   /* ──────── SKIP LINK ──────── */
   .skip-link {
     position: absolute;
@@ -618,7 +638,9 @@
 <!-- ──── NAVBAR ──── -->
 <nav id="navbar" role="navigation" aria-label="Nawigacja główna">
   <a href="#hero" class="logo">
-    <div class="logo-icon">🐾</div>
+    <div class="logo-icon">
+      <img src="logo.png" alt="Logo Pawsome">
+    </div>
     <span class="logo-text">Pawsome</span>
   </a>
   <div class="nav-links" id="nav-links">
@@ -647,7 +669,7 @@
   </div>
   <div class="hero-visual">
     <div class="hero-card">
-      <div class="hero-emoji">🐕</div>
+      <img src="logo.png" alt="Logo Pawsome">
     </div>
     <div class="floating-badge top">
       <div class="badge-icon green">✓</div>
@@ -893,7 +915,9 @@
   <div class="footer-grid">
     <div class="footer-brand">
       <a href="#hero" class="logo">
-        <div class="logo-icon">🐾</div>
+        <div class="logo-icon">
+          <img src="logo.png" alt="Logo Pawsome">
+        </div>
         <span class="logo-text">Pawsome</span>
       </a>
       <p>Weterynaria pełna empatii, w której Twój pupil traktowany jest jak rodzina. Obsługujemy Toruń i okolice od 2009 roku.</p>
