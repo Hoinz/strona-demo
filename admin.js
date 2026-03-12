@@ -305,16 +305,21 @@
 
     // Group bookings into columns: one per doctor in "all" view, single column in "mine"
     var columns;
-    if (viewMode === 'all' && acceptedBookings.length > 0) {
+    if (viewMode === 'all') {
       var doctorMap = {};
+      // Seed a column for every known doctor (so empty-day doctors still appear)
+      allDoctors.forEach(function(d) {
+        doctorMap[d.id] = { name: d.name, bookings: [] };
+      });
+      // Fill in accepted bookings
       acceptedBookings.forEach(function(b) {
         var key = b.doctorId || b.doctorName || 'unknown';
         if (!doctorMap[key]) doctorMap[key] = { name: b.doctorName || 'Lekarz', bookings: [] };
         doctorMap[key].bookings.push(b);
       });
-      columns = [];
-      Object.keys(doctorMap).forEach(function(k) { columns.push(doctorMap[k]); });
+      columns = Object.keys(doctorMap).map(function(k) { return doctorMap[k]; });
       columns.sort(function(a, b) { return a.name.localeCompare(b.name); });
+      if (columns.length === 0) columns = [{ name: '', bookings: [] }];
     } else {
       columns = [{ name: doctorName || '', bookings: acceptedBookings }];
     }
@@ -383,7 +388,7 @@
     timelineEl.innerHTML =
       '<div class="schedule-wrap" id="schedule-wrap">' +
         '<h3 class="schedule-title">Harmonogram dnia</h3>' +
-        (acceptedBookings.length === 0 ? '<p class="sch-empty">Brak potwierdzonych wizyt</p>' : '') +
+        (acceptedBookings.length === 0 && viewMode !== 'all' ? '<p class="sch-empty">Brak potwierdzonych wizyt</p>' : '') +
         headerRowHtml +
         '<div class="schedule-layout">' +
           '<div class="sch-time-axis" style="height:' + totalHeight + 'px">' + axisHtml + '</div>' +
