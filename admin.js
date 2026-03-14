@@ -1531,7 +1531,7 @@
 
   // filterDoctorId: null = all doctors, string = single doctor
   function buildWeekGrid(weekDates, apptsByDate, filterDoctorId, todayStr, doctorNameMap) {
-    var dayNames = ['Poniedziałek','Wtorek','Środa','Czwartek','Piątek','Sobota','Niedziela'];
+    var dayNames = ['Pon.','Wt.','Śr.','Czw.','Pt.','Sob.','Ndz.'];
     var dowForDate = [1,2,3,4,5,6,0]; // Mon..Sun → JS getDay values
 
     function getDayConfig(sched, dateStr, jsdow) {
@@ -1606,8 +1606,9 @@
         dayAppts.forEach(function(a) {
           var endTime = minsToTime(timeToMins(a.time) + (a.duration || 20));
           var statusCls = a.status === 'accepted' ? 'week-appt-status-accepted' : 'week-appt-status-pending';
+          var itemBorder = a.status === 'accepted' ? 'week-appt-accent-accepted' : 'week-appt-accent-pending';
           var statusLabel = a.status === 'accepted' ? 'Potw.' : 'Oczek.';
-          html += '<div class="week-appt-item">';
+          html += '<div class="week-appt-item ' + itemBorder + '">';
           html += '<div class="week-appt-top">';
           html += '<span class="week-appt-time">' + escapeHtml(a.time) + '\u2013' + escapeHtml(endTime) + '</span>';
           html += '<span class="week-appt-status ' + statusCls + '">' + statusLabel + '</span>';
@@ -1622,7 +1623,7 @@
         });
         html += '</div>';
       } else if (!filterDoctorId || !isOff) {
-        html += '<div class="week-day-empty"><span class="week-day-empty-icon">\uD83D\uDCC5</span>Brak wizyt</div>';
+        html += '<div class="week-day-empty"><span class="week-day-empty-icon">\u2014</span>Brak wizyt</div>';
       }
 
       html += '</div>';
