@@ -1370,12 +1370,28 @@
 
     function getDayConfig(sched, dateStr, dow) {
       if (!sched) return null;
-      // Outside validity period → no schedule
       if (sched.validFrom && dateStr < sched.validFrom) return null;
       if (sched.validUntil && dateStr > sched.validUntil) return null;
       return (sched.days && sched.days[dateStr]) ||
              (sched.defaultWeek && sched.defaultWeek[String(dow)]) ||
              (sched.weeklyHours && sched.weeklyHours[String(dow)]);
+    }
+
+    function countStats(year, month, doctorId) {
+      var sched = doctorScheduleCache[doctorId];
+      var lastDate = new Date(year, month + 1, 0).getDate();
+      var working = 0, off = 0, blocks = 0;
+      for (var d = 1; d <= lastDate; d++) {
+        var dateStr = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+        var dow = new Date(year, month, d).getDay();
+        var cfg = getDayConfig(sched, dateStr, dow);
+        if (cfg && cfg.active) working++;
+        else if (cfg && !cfg.active) off++;
+        if (sched && sched.busyBlocks) {
+          blocks += sched.busyBlocks.filter(function(bb) { return bb.date === dateStr; }).length;
+        }
+      }
+      return { working: working, off: off, blocks: blocks };
     }
 
     function renderCalendar(year, month, doctorId) {
@@ -1385,7 +1401,10 @@
       var startOffset = (firstDay.getDay() + 6) % 7;
 
       var html = '<div class="vs-cal-header">';
-      hdrNames.forEach(function(h) { html += '<div class="vs-cal-hdr-cell">' + escapeHtml(h) + '</div>'; });
+      hdrNames.forEach(function(h) {
+        var isWeekend = (h === 'Sb' || h === 'Nd');
+        html += '<div class="vs-cal-hdr-cell' + (isWeekend ? ' vs-cal-hdr-weekend' : '') + '">' + escapeHtml(h) + '</div>';
+      });
       html += '</div><div class="vs-cal-grid">';
 
       for (var i = 0; i < startOffset; i++) {
@@ -1407,16 +1426,17 @@
           (isToday ? ' vs-cal-today' : '') +
           (isActive ? ' vs-cal-active' : isOff ? ' vs-cal-off' : ' vs-cal-nosched');
 
-        var inner = '<div class="vs-cal-day-num">' + d + '</div>';
+        var inner = '<div class="vs-cal-day-num">' + d;
+        if (isToday) inner += '<span class="vs-today-dot"></span>';
+        inner += '</div>';
+
         if (isActive) {
-          inner += '<div class="vs-cal-hours">' + escapeHtml(cfg.start) + '\u2013' + escapeHtml(cfg.end) + '</div>';
+          inner += '<div class="vs-cal-hours">' + escapeHtml(cfg.start) + '\u2009\u2013\u2009' + escapeHtml(cfg.end) + '</div>';
           (cfg.pauses || []).forEach(function(p) {
-            inner += '<div class="vs-cal-pause">' + escapeHtml(p.start) + '\u2013' + escapeHtml(p.end) + '</div>';
+            inner += '<div class="vs-cal-pause">przerwa ' + escapeHtml(p.start) + '\u2013' + escapeHtml(p.end) + '</div>';
           });
         } else if (isOff) {
-          inner += '<div class="vs-cal-hours vs-cal-hours-off">Wolny</div>';
-        } else {
-          inner += '<div class="vs-cal-hours vs-cal-hours-clinic">\u2013</div>';
+          inner += '<div class="vs-cal-off-label">Wolny</div>';
         }
         dayBusy.forEach(function(bb) {
           inner += '<div class="vs-cal-busy">' + escapeHtml(bb.startTime) + '\u2013' + escapeHtml(bb.endTime) + '</div>';
@@ -1429,6 +1449,14 @@
     function refresh() {
       overlay.querySelector('#vs-month-label').textContent = monthNames[viewMonth] + ' ' + viewYear;
       overlay.querySelector('#view-sched-content').innerHTML = renderCalendar(viewYear, viewMonth, selectedDoctorId);
+
+      var stats = countStats(viewYear, viewMonth, selectedDoctorId);
+      var statsEl = overlay.querySelector('#vs-stats');
+      statsEl.innerHTML =
+        '<span class="vs-stat"><span class="vs-stat-num vs-stat-working">' + stats.working + '</span> dni pracy</span>' +
+        '<span class="vs-stat-sep"></span>' +
+        '<span class="vs-stat"><span class="vs-stat-num vs-stat-off">' + stats.off + '</span> wolne</span>' +
+        (stats.blocks > 0 ? '<span class="vs-stat-sep"></span><span class="vs-stat"><span class="vs-stat-num vs-stat-blocks">' + stats.blocks + '</span> blokad</span>' : '');
     }
 
     var myId = currentUser.uid;
@@ -1447,21 +1475,26 @@
           '<button class="appt-modal-close">&times;</button>' +
         '</div>' +
         '<div class="appt-modal-body">' +
-          '<div class="view-sched-selector">' +
-            '<label class="view-sched-label">Lekarz:</label>' +
-            '<select id="view-sched-doctor" class="view-sched-select">' + doctorOptions + '</select>' +
-          '</div>' +
-          '<div class="view-sched-nav">' +
-            '<button class="vs-nav-btn" id="vs-prev-month">&#8249;</button>' +
-            '<span class="vs-month-label" id="vs-month-label"></span>' +
-            '<button class="vs-nav-btn" id="vs-next-month">&#8250;</button>' +
+          '<div class="vs-toolbar">' +
+            '<div class="view-sched-selector">' +
+              '<select id="view-sched-doctor" class="view-sched-select">' + doctorOptions + '</select>' +
+            '</div>' +
+            '<div class="vs-nav">' +
+              '<button class="vs-nav-btn" id="vs-prev-month">&#8249;</button>' +
+              '<span class="vs-month-label" id="vs-month-label"></span>' +
+              '<button class="vs-nav-btn" id="vs-next-month">&#8250;</button>' +
+              '<button class="vs-nav-today" id="vs-today">Dzi\u015b</button>' +
+            '</div>' +
           '</div>' +
           '<div id="view-sched-content"></div>' +
-          '<div class="vs-legend">' +
-            '<span class="vs-leg-item vs-leg-active">Pracuje</span>' +
-            '<span class="vs-leg-item vs-leg-off">Wolny</span>' +
-            '<span class="vs-leg-item vs-leg-nosched">Brak grafiku</span>' +
-            '<span class="vs-leg-item vs-leg-busy">Blokada</span>' +
+          '<div class="vs-footer">' +
+            '<div class="vs-stats" id="vs-stats"></div>' +
+            '<div class="vs-legend">' +
+              '<span class="vs-leg-item vs-leg-active">Pracuje</span>' +
+              '<span class="vs-leg-item vs-leg-off">Wolny</span>' +
+              '<span class="vs-leg-item vs-leg-nosched">Brak grafiku</span>' +
+              '<span class="vs-leg-item vs-leg-busy">Blokada</span>' +
+            '</div>' +
           '</div>' +
         '</div>' +
       '</div>';
@@ -1482,6 +1515,11 @@
     });
     overlay.querySelector('#vs-next-month').addEventListener('click', function() {
       viewMonth++; if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+      refresh();
+    });
+    overlay.querySelector('#vs-today').addEventListener('click', function() {
+      viewYear = now.getFullYear();
+      viewMonth = now.getMonth();
       refresh();
     });
     refresh();
