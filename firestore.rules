@@ -2,58 +2,85 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    match /doctors/{doctorId} {
-      allow read: if true;
-      allow write: if request.auth != null;
+    // ── Role helpers (check roles collection) ──
+    function getUserRole() {
+      return get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role;
+    }
+    function isAdmin() {
+      return request.auth != null && getUserRole() == "admin";
+    }
+    function isStaff() {
+      return request.auth != null
+             && (getUserRole() == "admin" || getUserRole() == "doctor");
     }
 
+    // ── Roles (only admins can manage) ──
+    match /roles/{uid} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+    }
+
+    // ── Doctors ──
+    match /doctors/{doctorId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ── Slots ──
     match /slots/{slotId} {
       allow read: if true;
       allow create: if request.resource.data.keys().hasOnly(['date', 'time', 'doctorId', 'duration']);
-      allow update, delete: if request.auth != null;
+      allow update, delete: if isStaff();
     }
 
+    // ── Appointments ──
     match /appointments/{appointmentId} {
-      allow read: if request.auth != null;
+      allow read: if isStaff();
       allow create: if request.resource.data.status == 'pending'
                     && request.resource.data.keys().hasAll([
                          'slotId','date','time','patientName','petName',
                          'phone','email','service','duration','status','createdAt',
                          'doctorId','doctorName']);
-      allow update: if request.auth != null
+      allow update: if isStaff()
                     && request.resource.data.diff(resource.data)
                          .affectedKeys().hasOnly([
                            'status', 'notes', 'duration',
                            'patientName', 'petName', 'phone', 'email', 'service', 'time',
                            'date', 'comment'
                          ]);
-      allow delete: if request.auth != null;
+      allow delete: if isStaff();
     }
 
+    // ── Schedule (clinic-wide overrides) ──
     match /schedule/{dateId} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if isAdmin();
     }
 
+    // ── Doctor Schedules ──
     match /doctorSchedules/{doctorId} {
       allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == doctorId;
+      allow write: if isAdmin()
+                   || (isStaff() && request.auth.uid == doctorId);
     }
 
+    // ── Site Content ──
     match /siteContent/{docId} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if isAdmin();
     }
 
+    // ── Services ──
     match /services/{serviceId} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if isAdmin();
     }
 
+    // ── Site Errors ──
     match /siteErrors/{errorId} {
-      allow read: if request.auth != null;
+      allow read: if isStaff();
       allow create: if true;
-      allow delete: if request.auth != null;
+      allow delete: if isAdmin();
     }
   }
 }

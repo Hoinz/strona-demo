@@ -26,6 +26,7 @@
   var acceptedById = {};   // id → booking, for the click-to-edit modal
   var doctorScheduleCache = {};  // doctorId → schedule doc data
   var allDoctors = [];           // [{id, name}] for view-schedule selector
+  var currentUserRole = null;    // 'admin' | 'doctor' — from roles collection
 
   // ── AUTH ──
   function initAuth() {
@@ -34,20 +35,36 @@
 
     auth.onAuthStateChanged(function(user) {
       if (user) {
-        currentUser = user;
-        loginView.style.display = 'none';
-        dashboard.classList.add('visible');
-        if (!dashboardInitialized) {
-          loadDoctorInfo(user.uid, function() {
-            initDashboard();
-            dashboardInitialized = true;
-            checkContentHealth();
-          });
-        } else {
-          loadBookings();
-        }
+        // Check role in Firestore roles collection
+        window.PawsomeDB.collection('roles').doc(user.uid).get().then(function(roleDoc) {
+          var role = roleDoc.exists ? roleDoc.data().role : null;
+          if (role !== 'admin' && role !== 'doctor') {
+            auth.signOut();
+            loginError.textContent = 'Brak uprawnień do panelu administracyjnego. Skontaktuj się z administratorem.';
+            loginError.classList.add('visible');
+            return;
+          }
+          currentUser = user;
+          currentUserRole = role;
+          loginView.style.display = 'none';
+          dashboard.classList.add('visible');
+          if (!dashboardInitialized) {
+            loadDoctorInfo(user.uid, function() {
+              initDashboard();
+              dashboardInitialized = true;
+              checkContentHealth();
+            });
+          } else {
+            loadBookings();
+          }
+        }).catch(function() {
+          auth.signOut();
+          loginError.textContent = 'Błąd weryfikacji uprawnień. Spróbuj ponownie.';
+          loginError.classList.add('visible');
+        });
       } else {
         currentUser = null;
+        currentUserRole = null;
         doctorName = '';
         canEditWebsite = true;
         loginView.style.display = '';
@@ -79,7 +96,9 @@
   function applyEditorPermission() {
     var editorTab = document.getElementById('main-tab-editor');
     if (!editorTab) return;
-    if (canEditWebsite) {
+    // Use role from custom claims — only admins can edit site content
+    var hasEditorAccess = currentUserRole === 'admin';
+    if (hasEditorAccess) {
       editorTab.style.display = '';
     } else {
       editorTab.style.display = 'none';
@@ -2371,7 +2390,7 @@
     });
   }
 
-  // ── Create Firebase Auth account via secondary app ──
+  // ── Create Firebase Auth account + assign doctor role ──
   function createDoctorAuthAccount(email) {
     return new Promise(function(resolve, reject) {
       var secondaryApp = firebase.initializeApp(firebase.app().options, 'secondary');
@@ -2385,6 +2404,9 @@
           var uid = cred.user.uid;
           return secondaryAuth.signOut().then(function() {
             return secondaryApp.delete();
+          }).then(function() {
+            // Assign doctor role in Firestore
+            return window.PawsomeDB.collection('roles').doc(uid).set({ role: 'doctor' });
           }).then(function() {
             resolve(uid);
           });
