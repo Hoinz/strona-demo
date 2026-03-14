@@ -22,6 +22,7 @@
   var currentUser = null;
   var viewMode = 'mine';   // 'mine' | 'all'
   var doctorName = '';
+  var canEditWebsite = true;
   var acceptedById = {};   // id → booking, for the click-to-edit modal
   var doctorScheduleCache = {};  // doctorId → schedule doc data
   var allDoctors = [];           // [{id, name}] for view-schedule selector
@@ -48,6 +49,7 @@
       } else {
         currentUser = null;
         doctorName = '';
+        canEditWebsite = true;
         loginView.style.display = '';
         dashboard.classList.remove('visible');
         if (unsubscribePending) { unsubscribePending(); unsubscribePending = null; }
@@ -59,17 +61,46 @@
   // ── LOAD DOCTOR INFO ──
   function loadDoctorInfo(uid, callback) {
     window.PawsomeDB.collection('doctors').doc(uid).get().then(function(doc) {
-      doctorName = doc.exists ? (doc.data().name || '') : 'Lekarz';
+      if (doc.exists) {
+        var data = doc.data();
+        doctorName = data.name || '';
+        canEditWebsite = data.canEditWebsite !== undefined ? !!data.canEditWebsite : true;
+      } else {
+        doctorName = 'Lekarz';
+        canEditWebsite = true;
+      }
       var labelEl = document.getElementById('doctor-label');
       if (labelEl) labelEl.textContent = 'Zalogowany jako: ' + doctorName;
+      applyEditorPermission();
       callback();
     }).catch(function() { callback(); });
+  }
+
+  function applyEditorPermission() {
+    var editorTab = document.getElementById('main-tab-editor');
+    if (!editorTab) return;
+    if (canEditWebsite) {
+      editorTab.style.display = '';
+    } else {
+      editorTab.style.display = 'none';
+      // If currently on editor view, switch to bookings
+      if (editorTab.classList.contains('active')) {
+        editorTab.classList.remove('active');
+        var bookingsTab = document.getElementById('main-tab-bookings');
+        if (bookingsTab) bookingsTab.classList.add('active');
+        var viewBookings = document.getElementById('view-bookings');
+        var viewEditor = document.getElementById('view-editor');
+        if (viewBookings) viewBookings.style.display = '';
+        if (viewEditor) viewEditor.style.display = 'none';
+      }
+    }
   }
 
   // ── LOGIN ──
   loginForm.addEventListener('submit', function(e) {
     e.preventDefault();
     loginError.classList.remove('visible');
+    loginError.style.color = '';
     var email = document.getElementById('login-email').value;
     var password = document.getElementById('login-password').value;
 
@@ -78,6 +109,32 @@
         loginError.textContent = 'Nieprawidłowy email lub hasło';
         loginError.classList.add('visible');
       });
+  });
+
+  // ── FORGOT PASSWORD ──
+  document.getElementById('forgot-password-link').addEventListener('click', function(e) {
+    e.preventDefault();
+    var email = document.getElementById('login-email').value.trim();
+    if (!email) {
+      loginError.textContent = 'Wpisz swój adres email powyżej, a następnie kliknij ten link';
+      loginError.classList.add('visible');
+      return;
+    }
+    window.PawsomeAuth.sendPasswordResetEmail(email).then(function() {
+      loginError.style.color = '#2e7d32';
+      loginError.textContent = 'Link do resetowania hasła został wysłany na ' + email;
+      loginError.classList.add('visible');
+    }).catch(function(err) {
+      loginError.style.color = '';
+      if (err.code === 'auth/user-not-found') {
+        loginError.textContent = 'Nie znaleziono konta z tym adresem email';
+      } else if (err.code === 'auth/invalid-email') {
+        loginError.textContent = 'Nieprawidłowy format adresu email';
+      } else {
+        loginError.textContent = 'Błąd: ' + err.message;
+      }
+      loginError.classList.add('visible');
+    });
   });
 
   // ── LOGOUT ──
@@ -2314,13 +2371,41 @@
     });
   }
 
+  // ── Create Firebase Auth account via secondary app ──
+  function createDoctorAuthAccount(email) {
+    return new Promise(function(resolve, reject) {
+      var secondaryApp = firebase.initializeApp(firebase.app().options, 'secondary');
+      var secondaryAuth = secondaryApp.auth();
+      var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%';
+      var tempPassword = '';
+      for (var i = 0; i < 24; i++) tempPassword += chars.charAt(Math.floor(Math.random() * chars.length));
+
+      secondaryAuth.createUserWithEmailAndPassword(email, tempPassword)
+        .then(function(cred) {
+          var uid = cred.user.uid;
+          return secondaryAuth.signOut().then(function() {
+            return secondaryApp.delete();
+          }).then(function() {
+            resolve(uid);
+          });
+        })
+        .catch(function(err) {
+          secondaryApp.delete().catch(function() {});
+          reject(err);
+        });
+    });
+  }
+
   // ── Doctor Modal ──
   function openDoctorModal(doc) {
     var isNew = !doc;
     var d = doc || {
       _id: null, name: '', specialty: '', bio: '', photoURL: '',
-      displayOrder: editorData.doctors.length + 1, showOnWebsite: true
+      displayOrder: editorData.doctors.length + 1, showOnWebsite: true,
+      email: '', canEditWebsite: false
     };
+    // Backward compat: existing doctors without canEditWebsite field get true
+    var docCanEdit = (!isNew && d.canEditWebsite === undefined) ? true : !!d.canEditWebsite;
 
     var m = createModalOverlay();
     var html = '<button class="editor-modal-close">&times;</button>';
@@ -2334,6 +2419,12 @@
     }
     html += '<div class="editor-field"><label>Zdjęcie</label><input type="file" id="doctor-photo-input" accept="image/*"></div>';
 
+    // Email field
+    html += '<div class="editor-field"><label for="ed-doc-email">Email (login)</label>' +
+      '<input type="email" id="ed-doc-email" value="' + esc(d.email || '') + '"' +
+      (!isNew && d.email ? ' readonly style="opacity:0.6;cursor:not-allowed"' : '') +
+      ' placeholder="np. jan@klinika.pl"></div>';
+
     html += field('Imię i tytuł', 'doc-name', d.name);
     html += field('Specjalizacja', 'doc-specialty', d.specialty);
     html += fieldTA('Bio', 'doc-bio', d.bio);
@@ -2342,6 +2433,7 @@
       '<div></div>' +
     '</div>';
     html += '<div class="editor-field-checkbox"><input type="checkbox" id="ed-doc-showOnWebsite"' + (d.showOnWebsite !== false ? ' checked' : '') + '><label for="ed-doc-showOnWebsite">Pokaż na stronie</label></div>';
+    html += '<div class="editor-field-checkbox"><input type="checkbox" id="ed-doc-canEditWebsite"' + (docCanEdit ? ' checked' : '') + '><label for="ed-doc-canEditWebsite">Może edytować stronę</label></div>';
 
     html += '<div class="editor-modal-actions">' +
       '<button class="editor-save-btn" id="doc-modal-save">' + (isNew ? 'Dodaj lekarza' : 'Zapisz zmiany') + '</button></div>';
@@ -2379,18 +2471,19 @@
 
       this.disabled = true;
       var self = this;
-      var docId = d._id || db.collection('doctors').doc().id;
-
+      var email = document.getElementById('ed-doc-email').value.trim();
       var photoFile = photoInput.files && photoInput.files[0];
 
-      function saveDoc(photoURL) {
+      function saveDoc(docId, photoURL) {
         var data = {
           name: val('doc-name'),
           specialty: val('doc-specialty'),
           bio: val('doc-bio'),
           photoURL: photoURL || d.photoURL || '',
           displayOrder: parseInt(document.getElementById('ed-doc-displayOrder').value) || 1,
-          showOnWebsite: document.getElementById('ed-doc-showOnWebsite').checked
+          showOnWebsite: document.getElementById('ed-doc-showOnWebsite').checked,
+          email: email || d.email || '',
+          canEditWebsite: document.getElementById('ed-doc-canEditWebsite').checked
         };
 
         db.collection('doctors').doc(docId).set(data, { merge: true }).then(function() {
@@ -2410,18 +2503,40 @@
         });
       }
 
-      if (photoFile && storage) {
-        var ref = storage.ref('doctors/' + docId + '.jpg');
-        ref.put(photoFile).then(function(snapshot) {
-          return snapshot.ref.getDownloadURL();
-        }).then(function(url) {
-          saveDoc(url);
-        }).catch(function(e) {
-          alert('Błąd uploadu zdjęcia: ' + e.message);
+      function uploadAndSave(docId) {
+        if (photoFile && storage) {
+          var ref = storage.ref('doctors/' + docId + '.jpg');
+          ref.put(photoFile).then(function(snapshot) {
+            return snapshot.ref.getDownloadURL();
+          }).then(function(url) {
+            saveDoc(docId, url);
+          }).catch(function(e) {
+            alert('Błąd uploadu zdjęcia: ' + e.message);
+            self.disabled = false;
+          });
+        } else {
+          saveDoc(docId, null);
+        }
+      }
+
+      if (isNew && email) {
+        // New doctor with email → create Firebase Auth account
+        createDoctorAuthAccount(email).then(function(uid) {
+          uploadAndSave(uid);
+        }).catch(function(err) {
+          if (err.code === 'auth/email-already-in-use') {
+            alert('To konto email już istnieje w systemie');
+          } else if (err.code === 'auth/invalid-email') {
+            alert('Nieprawidłowy format adresu email');
+          } else {
+            alert('Błąd tworzenia konta: ' + err.message);
+          }
           self.disabled = false;
         });
       } else {
-        saveDoc(null);
+        // Existing doctor or new doctor without email
+        var docId = d._id || db.collection('doctors').doc().id;
+        uploadAndSave(docId);
       }
     });
   }

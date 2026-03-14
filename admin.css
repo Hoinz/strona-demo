@@ -75,6 +75,18 @@
 .btn-login:hover {
   background: var(--charcoal);
 }
+.forgot-password-link {
+  display: block;
+  margin-top: 1rem;
+  font-size: 0.85rem;
+  color: #888;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+.forgot-password-link:hover {
+  color: var(--charcoal);
+  text-decoration: underline;
+}
 
 /* ── DASHBOARD ── */
 .admin-dashboard {
