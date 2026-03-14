@@ -1240,6 +1240,7 @@
 .vs-cal-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
+  grid-template-rows: repeat(6, 1fr);
   gap: 4px;
 }
 
@@ -1262,6 +1263,10 @@
 .vs-cal-empty {
   background: transparent;
   border-color: transparent;
+  pointer-events: none;
+}
+.vs-cal-other-month {
+  opacity: 0.35;
   pointer-events: none;
 }
 

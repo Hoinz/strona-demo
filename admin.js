@@ -1408,10 +1408,13 @@
 
     function getDayConfig(sched, dateStr, dow) {
       if (!sched) return null;
+      // Per-day entry takes priority over validity period
+      var dayEntry = sched.days && sched.days[dateStr];
+      if (dayEntry) return dayEntry;
+      // Period check applies only when falling back to the weekly template
       if (sched.validFrom && dateStr < sched.validFrom) return null;
       if (sched.validUntil && dateStr > sched.validUntil) return null;
-      return (sched.days && sched.days[dateStr]) ||
-             (sched.defaultWeek && sched.defaultWeek[String(dow)]) ||
+      return (sched.defaultWeek && sched.defaultWeek[String(dow)]) ||
              (sched.weeklyHours && sched.weeklyHours[String(dow)]);
     }
 
@@ -1437,6 +1440,8 @@
       var firstDay = new Date(year, month, 1);
       var lastDate = new Date(year, month + 1, 0).getDate();
       var startOffset = (firstDay.getDay() + 6) % 7;
+      var totalCells = 42; // always 6 rows
+      var prevMonthLastDate = new Date(year, month, 0).getDate();
 
       var html = '<div class="vs-cal-header">';
       hdrNames.forEach(function(h) {
@@ -1445,15 +1450,11 @@
       });
       html += '</div><div class="vs-cal-grid">';
 
-      for (var i = 0; i < startOffset; i++) {
-        html += '<div class="vs-cal-cell vs-cal-empty"></div>';
-      }
-      for (var d = 1; d <= lastDate; d++) {
-        var dateStr = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
-        var date = new Date(year, month, d);
-        var dow = date.getDay();
-        var cfg = getDayConfig(sched, dateStr, dow);
-        var dayBusy = (sched && sched.busyBlocks)
+      function renderCell(cellYear, cellMonth, d, isOtherMonth) {
+        var dateStr = cellYear + '-' + String(cellMonth + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+        var dow = new Date(cellYear, cellMonth, d).getDay();
+        var cfg = isOtherMonth ? null : getDayConfig(sched, dateStr, dow);
+        var dayBusy = (!isOtherMonth && sched && sched.busyBlocks)
           ? sched.busyBlocks.filter(function(bb) { return bb.date === dateStr; })
           : [];
         var isToday = dateStr === todayStr;
@@ -1461,6 +1462,7 @@
         var isOff = cfg && !cfg.active;
 
         var cls = 'vs-cal-cell' +
+          (isOtherMonth ? ' vs-cal-other-month' : '') +
           (isToday ? ' vs-cal-today' : '') +
           (isActive ? ' vs-cal-active' : isOff ? ' vs-cal-off' : ' vs-cal-nosched');
 
@@ -1468,18 +1470,41 @@
         if (isToday) inner += '<span class="vs-today-dot"></span>';
         inner += '</div>';
 
-        if (isActive) {
-          inner += '<div class="vs-cal-hours">' + escapeHtml(cfg.start) + '\u2009\u2013\u2009' + escapeHtml(cfg.end) + '</div>';
-          (cfg.pauses || []).forEach(function(p) {
-            inner += '<div class="vs-cal-pause">przerwa ' + escapeHtml(p.start) + '\u2013' + escapeHtml(p.end) + '</div>';
+        if (!isOtherMonth) {
+          if (isActive) {
+            inner += '<div class="vs-cal-hours">' + escapeHtml(cfg.start) + '\u2009\u2013\u2009' + escapeHtml(cfg.end) + '</div>';
+            (cfg.pauses || []).forEach(function(p) {
+              inner += '<div class="vs-cal-pause">przerwa ' + escapeHtml(p.start) + '\u2013' + escapeHtml(p.end) + '</div>';
+            });
+          } else if (isOff) {
+            inner += '<div class="vs-cal-off-label">Wolny</div>';
+          }
+          dayBusy.forEach(function(bb) {
+            inner += '<div class="vs-cal-busy">' + escapeHtml(bb.startTime) + '\u2013' + escapeHtml(bb.endTime) + '</div>';
           });
-        } else if (isOff) {
-          inner += '<div class="vs-cal-off-label">Wolny</div>';
         }
-        dayBusy.forEach(function(bb) {
-          inner += '<div class="vs-cal-busy">' + escapeHtml(bb.startTime) + '\u2013' + escapeHtml(bb.endTime) + '</div>';
-        });
-        html += '<div class="' + cls + '">' + inner + '</div>';
+        return '<div class="' + cls + '">' + inner + '</div>';
+      }
+
+      // Previous month trailing days
+      for (var i = startOffset - 1; i >= 0; i--) {
+        var prevD = prevMonthLastDate - i;
+        var prevM = month - 1, prevY = year;
+        if (prevM < 0) { prevM = 11; prevY--; }
+        html += renderCell(prevY, prevM, prevD, true);
+      }
+      // Current month days
+      for (var d = 1; d <= lastDate; d++) {
+        html += renderCell(year, month, d, false);
+      }
+      // Next month leading days
+      var filled = startOffset + lastDate;
+      var nextD = 1;
+      var nextM = month + 1, nextY = year;
+      if (nextM > 11) { nextM = 0; nextY++; }
+      while (filled < totalCells) {
+        html += renderCell(nextY, nextM, nextD++, true);
+        filled++;
       }
       return html + '</div>';
     }
