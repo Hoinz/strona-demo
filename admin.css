@@ -319,8 +319,6 @@
   border-top: 1px solid rgba(0,0,0,0.06);
   padding-top: 2rem;
   overflow-x: auto;
-  overflow-y: auto;
-  max-height: calc(100vh - 320px);
   -webkit-overflow-scrolling: touch;
 }
 .schedule-title {
