@@ -37,7 +37,8 @@
       if (user) {
         // Check role in Firestore roles collection
         window.PawsomeDB.collection('roles').doc(user.uid).get().then(function(roleDoc) {
-          var role = roleDoc.exists ? roleDoc.data().role : null;
+          var roleData = roleDoc.exists ? roleDoc.data() : {};
+          var role = roleData.role || null;
           if (role !== 'admin' && role !== 'doctor') {
             auth.signOut();
             loginError.textContent = 'Brak uprawnień do panelu administracyjnego. Skontaktuj się z administratorem.';
@@ -46,6 +47,7 @@
           }
           currentUser = user;
           currentUserRole = role;
+          canEditWebsite = role === 'admin' || !!roleData.canEditWebsite;
           loginView.style.display = 'none';
           dashboard.classList.add('visible');
           if (!dashboardInitialized) {
@@ -96,8 +98,7 @@
   function applyEditorPermission() {
     var editorTab = document.getElementById('main-tab-editor');
     if (!editorTab) return;
-    // Use role from custom claims — only admins can edit site content
-    var hasEditorAccess = currentUserRole === 'admin';
+    var hasEditorAccess = canEditWebsite;
     if (hasEditorAccess) {
       editorTab.style.display = '';
     } else {
@@ -2508,7 +2509,11 @@
           canEditWebsite: document.getElementById('ed-doc-canEditWebsite').checked
         };
 
+        var editWebsite = document.getElementById('ed-doc-canEditWebsite').checked;
         db.collection('doctors').doc(docId).set(data, { merge: true }).then(function() {
+          // Update canEditWebsite in roles doc
+          return db.collection('roles').doc(docId).set({ canEditWebsite: editWebsite }, { merge: true });
+        }).then(function() {
           data._id = docId;
           if (isNew) {
             editorData.doctors.push(data);

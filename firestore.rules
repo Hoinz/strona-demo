@@ -3,15 +3,20 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // ── Role helpers (check roles collection) ──
-    function getUserRole() {
-      return get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.role;
+    function getRoleDoc() {
+      return get(/databases/$(database)/documents/roles/$(request.auth.uid)).data;
     }
     function isAdmin() {
-      return request.auth != null && getUserRole() == "admin";
+      return request.auth != null && getRoleDoc().role == "admin";
     }
     function isStaff() {
       return request.auth != null
-             && (getUserRole() == "admin" || getUserRole() == "doctor");
+             && (getRoleDoc().role == "admin" || getRoleDoc().role == "doctor");
+    }
+    function canEditSite() {
+      return request.auth != null
+             && (getRoleDoc().role == "admin"
+                 || (getRoleDoc().role == "doctor" && getRoleDoc().canEditWebsite == true));
     }
 
     // ── Roles (only admins can manage) ──
@@ -67,20 +72,20 @@ service cloud.firestore {
     // ── Site Content ──
     match /siteContent/{docId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if canEditSite();
     }
 
     // ── Services ──
     match /services/{serviceId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if canEditSite();
     }
 
     // ── Site Errors ──
     match /siteErrors/{errorId} {
       allow read: if isStaff();
       allow create: if true;
-      allow delete: if isAdmin();
+      allow delete: if isStaff();
     }
   }
 }
