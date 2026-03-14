@@ -1531,7 +1531,7 @@
 
   // filterDoctorId: null = all doctors, string = single doctor
   function buildWeekGrid(weekDates, apptsByDate, filterDoctorId, todayStr, doctorNameMap) {
-    var dayNames = ['Pon.','Wt.','Śr.','Czw.','Pt.','Sob.','Ndz.'];
+    var dayNames = ['Poniedziałek','Wtorek','Środa','Czwartek','Piątek','Sobota','Niedziela'];
     var dowForDate = [1,2,3,4,5,6,0]; // Mon..Sun → JS getDay values
 
     function getDayConfig(sched, dateStr, jsdow) {
