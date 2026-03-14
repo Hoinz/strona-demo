@@ -2150,9 +2150,20 @@
         refreshList('services-list', editorData.services, 'service', function(s) { return s.emoji + ' ' + s.name; }, function(s) { return s.active ? 'Aktywna' : 'Nieaktywna'; });
       });
     } else if (type === 'doctor') {
-      db.collection('doctors').doc(id).delete().then(function() {
+      // Delete doctor doc + schedule + role in parallel
+      var deletes = [
+        db.collection('doctors').doc(id).delete(),
+        db.collection('doctorSchedules').doc(id).delete().catch(function() {}),
+        db.collection('roles').doc(id).delete().catch(function() {})
+      ];
+      Promise.all(deletes).then(function() {
         editorData.doctors = editorData.doctors.filter(function(d) { return d._id !== id; });
         refreshList('doctors-list', editorData.doctors, 'doctor', function(d) { return d.name; }, function(d) { return d.specialty || ''; });
+        // Remove from allDoctors so timeline updates
+        allDoctors = allDoctors.filter(function(d) { return d.id !== id; });
+        delete doctorScheduleCache[id];
+        // Re-render timeline to reflect removed doctor
+        refreshDisplay(datePicker.value);
       });
     } else if (type === 'testimonial') {
       var idx = parseInt(id);
@@ -2517,12 +2528,20 @@
           data._id = docId;
           if (isNew) {
             editorData.doctors.push(data);
+            // Add to allDoctors so timeline updates
+            allDoctors.push({ id: docId, name: data.name });
+            allDoctors.sort(function(a, b) { return a.name.localeCompare(b.name); });
           } else {
             var idx = editorData.doctors.findIndex(function(x) { return x._id === d._id; });
             if (idx !== -1) editorData.doctors[idx] = data;
+            // Update name in allDoctors
+            var adIdx = allDoctors.findIndex(function(x) { return x.id === docId; });
+            if (adIdx !== -1) allDoctors[adIdx].name = data.name;
           }
           editorData.doctors.sort(function(a, b) { return (a.displayOrder || 0) - (b.displayOrder || 0); });
           refreshList('doctors-list', editorData.doctors, 'doctor', function(x) { return x.name; }, function(x) { return x.specialty || ''; });
+          // Re-render timeline to reflect updated doctor list
+          refreshDisplay(datePicker.value);
           m.close();
         }).catch(function(e) {
           alert('Błąd: ' + e.message);
