@@ -1025,13 +1025,16 @@
           return 'Wizyta przypada na zablokowany czas lekarza (' + bb.startTime + '\u2013' + bb.endTime + '). Wybierz inną godzinę.';
       }
     }
-    // Period check applies to the weekly schedule
-    if (sched.validFrom && date < sched.validFrom) return null;
-    if (sched.validUntil && date > sched.validUntil) return null;
+    // Per-day entry takes priority over validity period
     var dow = String(dateStrToDow(date));
-    var day = (sched.days && sched.days[date]) ||
-              (sched.defaultWeek && sched.defaultWeek[dow]) ||
-              (sched.weeklyHours && sched.weeklyHours[dow]);
+    var day = sched.days && sched.days[date];
+    if (!day) {
+      // Period check applies only when falling back to the weekly template
+      if (sched.validFrom && date < sched.validFrom) return null;
+      if (sched.validUntil && date > sched.validUntil) return null;
+      day = (sched.defaultWeek && sched.defaultWeek[dow]) ||
+            (sched.weeklyHours && sched.weeklyHours[dow]);
+    }
     if (!day) return null;
     if (!day.active) return 'Lekarz nie pracuje w wybranym dniu.';
     var wStart = timeToMins(day.start), wEnd = timeToMins(day.end);
@@ -1276,10 +1279,45 @@
           pauses: weekPauses[parseInt(dow)].slice()
         } : { active: false };
       });
+
+      var vFrom = modal.querySelector('#sched-valid-from').value || null;
+      var vUntil = modal.querySelector('#sched-valid-until').value || null;
+
+      // Expand weekly template into per-day entries for the specified date range
+      if (vFrom && vUntil) {
+        var parts = vFrom.split('-');
+        var cur = new Date(+parts[0], +parts[1] - 1, +parts[2]);
+        var endParts = vUntil.split('-');
+        var end = new Date(+endParts[0], +endParts[1] - 1, +endParts[2]);
+
+        while (cur <= end) {
+          var dateStr = cur.getFullYear() + '-' +
+            String(cur.getMonth() + 1).padStart(2, '0') + '-' +
+            String(cur.getDate()).padStart(2, '0');
+          var dow = String(cur.getDay());
+          var dayConfig = wh[dow];
+          days[dateStr] = dayConfig.active
+            ? { active: true, start: dayConfig.start, end: dayConfig.end,
+                pauses: dayConfig.pauses.map(function(p) { return { start: p.start, end: p.end }; }) }
+            : { active: false };
+          cur.setDate(cur.getDate() + 1);
+        }
+      }
+
+      // Prune per-day entries older than 7 days
+      var pruneDate = new Date();
+      pruneDate.setDate(pruneDate.getDate() - 7);
+      var pruneDateStr = pruneDate.getFullYear() + '-' +
+        String(pruneDate.getMonth() + 1).padStart(2, '0') + '-' +
+        String(pruneDate.getDate()).padStart(2, '0');
+      Object.keys(days).forEach(function(key) {
+        if (key < pruneDateStr) delete days[key];
+      });
+
       saveSchedule({
         defaultWeek: wh,
-        validFrom: modal.querySelector('#sched-valid-from').value || null,
-        validUntil: modal.querySelector('#sched-valid-until').value || null,
+        validFrom: null,
+        validUntil: null,
         busyBlocks: busyBlocks.slice(),
         days: days
       }, modal);

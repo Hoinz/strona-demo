@@ -476,13 +476,19 @@
     var doctorDay = null;
     if (doctorScheduleData) {
       var dow = String(dayOfWeek);
-      doctorDay = (doctorScheduleData.days && dateStr && doctorScheduleData.days[dateStr]) ||
-                  (doctorScheduleData.defaultWeek && doctorScheduleData.defaultWeek[dow]) ||
-                  (doctorScheduleData.weeklyHours && doctorScheduleData.weeklyHours[dow]);
-      // Period check (universal): outside valid period → fall back to override/CLINIC_HOURS
-      if (dateStr) {
-        if (doctorScheduleData.validFrom && dateStr < doctorScheduleData.validFrom) doctorDay = null;
-        if (doctorScheduleData.validUntil && dateStr > doctorScheduleData.validUntil) doctorDay = null;
+      // Per-day entry takes priority over validity period
+      doctorDay = doctorScheduleData.days && dateStr && doctorScheduleData.days[dateStr];
+      if (!doctorDay) {
+        // Period check applies only when falling back to the weekly template
+        var withinPeriod = true;
+        if (dateStr) {
+          if (doctorScheduleData.validFrom && dateStr < doctorScheduleData.validFrom) withinPeriod = false;
+          if (doctorScheduleData.validUntil && dateStr > doctorScheduleData.validUntil) withinPeriod = false;
+        }
+        if (withinPeriod) {
+          doctorDay = (doctorScheduleData.defaultWeek && doctorScheduleData.defaultWeek[dow]) ||
+                      (doctorScheduleData.weeklyHours && doctorScheduleData.weeklyHours[dow]);
+        }
       }
     }
 
