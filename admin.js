@@ -391,10 +391,12 @@
       '<div class="schedule-wrap" id="schedule-wrap">' +
         '<h3 class="schedule-title">Harmonogram dnia</h3>' +
         (acceptedBookings.length === 0 && viewMode !== 'all' ? '<p class="sch-empty">Brak potwierdzonych wizyt</p>' : '') +
-        headerRowHtml +
-        '<div class="schedule-layout">' +
-          '<div class="sch-time-axis" style="height:' + totalHeight + 'px">' + axisHtml + '</div>' +
-          '<div class="sch-columns-wrap">' + columnsHtml + '</div>' +
+        '<div class="sched-scroll">' +
+          headerRowHtml +
+          '<div class="schedule-layout">' +
+            '<div class="sch-time-axis" style="height:' + totalHeight + 'px">' + axisHtml + '</div>' +
+            '<div class="sch-columns-wrap">' + columnsHtml + '</div>' +
+          '</div>' +
         '</div>' +
       '</div>';
     // Attach click handlers to appointment blocks
