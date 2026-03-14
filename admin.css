@@ -802,7 +802,8 @@
   transition: background 0.25s;
 }
 .appt-btn-save:hover { background: var(--charcoal); }
-.appt-btn-form-cancel {
+.appt-btn-form-cancel,
+.appt-btn-amend-cancel {
   flex: 1;
   background: transparent;
   color: #888;
@@ -813,7 +814,10 @@
   font-weight: 500;
   cursor: pointer;
   font-family: 'DM Sans', sans-serif;
+  transition: background 0.2s, color 0.2s;
 }
+.appt-btn-form-cancel:hover,
+.appt-btn-amend-cancel:hover { background: rgba(0,0,0,0.04); color: #666; }
 @media (max-width: 500px) {
   .appt-modal-overlay { padding: 0; align-items: flex-end; }
   .appt-modal { max-width: 100%; border-radius: 20px 20px 0 0; max-height: 92vh; }
