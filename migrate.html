@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Migracja danych — Pawsome</title>
+<meta name="robots" content="noindex, nofollow">
+<style>
+body{font-family:sans-serif;max-width:700px;margin:2rem auto;padding:0 1rem;background:#FAF6F0}
+h1{color:#3D4A3A}
+.log{background:#fff;border:1px solid #ddd;border-radius:8px;padding:1rem;margin-top:1rem;max-height:60vh;overflow-y:auto;font-family:monospace;font-size:.85rem;line-height:1.6}
+.ok{color:green}.err{color:red}.warn{color:orange}
+button{background:#3D4A3A;color:#FAF6F0;border:none;padding:.8rem 2rem;border-radius:8px;font-size:1rem;cursor:pointer;margin-top:1rem}
+button:hover{opacity:.9}
+button:disabled{opacity:.5;cursor:not-allowed}
+</style>
+</head>
+<body>
+<h1>Migracja treści do Firestore</h1>
+<div id="login-section">
+  <p>Zaloguj się jako admin, aby uruchomić migrację.</p>
+  <input type="email" id="login-email" placeholder="Email" style="padding:.5rem;border:1px solid #ccc;border-radius:6px;width:250px;margin-right:.5rem">
+  <input type="password" id="login-password" placeholder="Hasło" style="padding:.5rem;border:1px solid #ccc;border-radius:6px;width:200px;margin-right:.5rem">
+  <button id="btn-login">Zaloguj</button>
+  <div id="login-error" style="color:red;margin-top:.5rem"></div>
+</div>
+<div id="migrate-section" style="display:none">
+  <p>Kliknij przycisk, aby przenieść aktualną treść strony do kolekcji <code>siteContent</code> i <code>services</code> w Firestore.</p>
+  <button id="btn-migrate">Rozpocznij migrację</button>
+</div>
+<div class="log" id="log"></div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script>
+(function() {
+  var logEl = document.getElementById('log');
+  var btn = document.getElementById('btn-migrate');
+  var loginSection = document.getElementById('login-section');
+  var migrateSection = document.getElementById('migrate-section');
+
+  function log(msg, cls) {
+    var div = document.createElement('div');
+    div.className = cls || '';
+    div.textContent = msg;
+    logEl.appendChild(div);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  // Auth state listener — show migrate button when logged in
+  var auth = window.PawsomeAuth;
+  if (auth) {
+    auth.onAuthStateChanged(function(user) {
+      if (user) {
+        loginSection.style.display = 'none';
+        migrateSection.style.display = '';
+        log('Zalogowany jako: ' + user.email, 'ok');
+      } else {
+        loginSection.style.display = '';
+        migrateSection.style.display = 'none';
+      }
+    });
+  }
+
+  // Login button
+  document.getElementById('btn-login').addEventListener('click', function() {
+    var email = document.getElementById('login-email').value;
+    var password = document.getElementById('login-password').value;
+    var errEl = document.getElementById('login-error');
+    errEl.textContent = '';
+    if (!auth) { errEl.textContent = 'Firebase Auth niedostępny'; return; }
+    auth.signInWithEmailAndPassword(email, password).catch(function(e) {
+      errEl.textContent = 'Błąd logowania: ' + e.message;
+    });
+  });
+
+  btn.addEventListener('click', function() {
+    btn.disabled = true;
+    if (!auth || !auth.currentUser) {
+      log('Nie jesteś zalogowany.', 'err');
+      btn.disabled = false;
+      return;
+    }
+    runMigration();
+  });
+
+  function runMigration() {
+    var db = window.PawsomeDB;
+    var batch = db.batch();
+
+    // ── siteContent/hero ──
+    log('Przygotowuję: siteContent/hero...');
+    batch.set(db.collection('siteContent').doc('hero'), {
+      sectionLabel: 'Profesjonalna Opieka Weterynaryjna',
+      titleBefore: 'Gdzie Każda ',
+      titleEmphasis: 'Łapka',
+      titleAfter: ' Ma Swoją Historię',
+      subtitle: 'Nowoczesna weterynaria pełna empatii, dopasowana do indywidualnych potrzeb Twojego pupila. Bo rodzina to nie zawsze ludzie.',
+      ctaPrimary: 'Umów wizytę →',
+      ctaSecondary: 'Nasze usługi'
+    });
+
+    // ── siteContent/stats ──
+    log('Przygotowuję: siteContent/stats...');
+    batch.set(db.collection('siteContent').doc('stats'), {
+      items: [
+        { number: '15+', label: 'Lat doświadczenia' },
+        { number: '12 tys.', label: 'Szczęśliwych pacjentów' },
+        { number: '24/7', label: 'Opieka nagła' },
+        { number: '98%', label: 'Zadowolonych klientów' }
+      ]
+    });
+
+    // ── siteContent/servicesSection ──
+    log('Przygotowuję: siteContent/servicesSection...');
+    batch.set(db.collection('siteContent').doc('servicesSection'), {
+      sectionLabel: 'Co robimy',
+      title: 'Opieka Szyta na Miarę',
+      subtitle: 'Od rutynowych badań po zaawansowane zabiegi — nasz zespół łączy wiedzę z ciepłem przy każdej wizycie.'
+    });
+
+    // ── siteContent/about ──
+    log('Przygotowuję: siteContent/about...');
+    batch.set(db.collection('siteContent').doc('about'), {
+      sectionLabel: 'Nasza filozofia',
+      title: 'Medycyna z Sercem, Nauka z Duszą',
+      emoji: '🐈',
+      paragraph1: 'Klinika Pawsome powstała w 2009 roku z prostego przekonania: każde zwierzę zasługuje na opiekę tak delikatną, jak i fachową. Łączymy najnowszą wiedzę weterynaryjną z podejściem pozbawionym stresu.',
+      paragraph2: 'Nasza klinika ma przypominać dom — spokojne przestrzenie, minimum stresu i zespół, który naprawdę słucha zarówno Ciebie, jak i Twojego pupila.',
+      values: [
+        { title: 'Bez stresu', text: 'Łagodne podejście do każdego pacjenta' },
+        { title: 'Indywidualne podejście', text: 'Każdy pacjent traktowany wyjątkowo' },
+        { title: 'Przejrzyste ceny', text: 'Żadnych ukrytych kosztów, nigdy' },
+        { title: 'Ciągły rozwój', text: 'Stale się uczymy i doskonalimy' }
+      ]
+    });
+
+    // ── siteContent/testimonials ──
+    log('Przygotowuję: siteContent/testimonials...');
+    batch.set(db.collection('siteContent').doc('testimonials'), {
+      sectionLabel: 'Szczęśliwe rodziny',
+      title: 'Co Mówią Nasi Klienci',
+      items: [
+        {
+          stars: 5,
+          quote: 'Od pierwszego kroku w klinice nasz lękliwy piesek ze schroniska był traktowany z ogromną cierpliwością. Dr Leszczowska to skarb — wszystko wyjaśniła spokojnie i nigdy nas nie pośpieszała.',
+          authorName: 'Kasia i Bruno',
+          authorPet: 'Golden Retriever, 3 lata',
+          authorEmoji: '🐶'
+        },
+        {
+          stars: 5,
+          quote: 'Nasza kotka Luna miała nagły problem stomatologiczny w nocy. Zespół dyżurny był niesamowity — spokojny, profesjonalny i naprawdę troskliwy. Nie wyobrażamy sobie innej kliniki.',
+          authorName: 'Tomek i Luna',
+          authorPet: 'Kot perski, 7 lat',
+          authorEmoji: '🐱'
+        },
+        {
+          stars: 5,
+          quote: 'Plan żywieniowy, który stworzyli dla Herbatnika, zmienił wszystko. Więcej energii, piękniejsza sierść, lepsza kondycja. Widać, że naprawdę zależy im na długoterminowym zdrowiu.',
+          authorName: 'Magda i Herbatnik',
+          authorPet: 'Królik miniaturowy, 2 lata',
+          authorEmoji: '🐰'
+        }
+      ]
+    });
+
+    // ── siteContent/contact ──
+    log('Przygotowuję: siteContent/contact...');
+    batch.set(db.collection('siteContent').doc('contact'), {
+      sectionLabel: 'Kontakt',
+      title: 'Chcesz Zapewnić Pupilowi Najlepszą Opiekę?',
+      subtitle: 'Niezależnie czy chodzi o rutynową kontrolę, czy pilny przypadek — jesteśmy dla Ciebie. Napisz do nas lub zadzwoń.',
+      address: 'ul. Dębowa 142',
+      addressCity: '00-001 Toronto',
+      phone: '+48 22 555 77 99',
+      phoneNote: 'Całodobowo w nagłych przypadkach',
+      email: 'hello@pawsomevet.pl',
+      emailNote: 'Odpowiadamy w ciągu 2 godzin',
+      hours: 'Pon – Sob: 8:00 – 20:00',
+      hoursNote: 'Niedziela: 9:00 – 17:00',
+      ctaTitle: 'Napisz do Nas',
+      ctaText: 'Masz pytanie o zdrowie swojego pupila? Chcesz umówić wizytę? Wyślij nam wiadomość — odpowiemy najszybciej jak to możliwe.',
+      ctaButtonText: 'Wyślij wiadomość →'
+    });
+
+    log('Zapisuję siteContent (batch)...');
+    batch.commit().then(function() {
+      log('siteContent zapisany pomyślnie!', 'ok');
+      return migrateServices(db);
+    }).then(function() {
+      log('Usługi zapisane pomyślnie!', 'ok');
+      return migrateDoctors(db);
+    }).then(function() {
+      log('Lekarze zaktualizowani pomyślnie!', 'ok');
+      log('=== MIGRACJA ZAKOŃCZONA POMYŚLNIE ===', 'ok');
+    }).catch(function(err) {
+      log('BŁĄD: ' + err.message, 'err');
+    });
+  }
+
+  function migrateServices(db) {
+    var services = [
+      {
+        slug: 'badania-profilaktyczne',
+        name: 'Badania profilaktyczne',
+        emoji: '🩺',
+        duration: 20,
+        displayOrder: 1,
+        active: true,
+        shortDescription: 'Kompleksowe przeglądy zdrowia obejmujące badania krwi, kontrolę stomatologiczną i profilaktykę dostosowaną do wieku i rasy Twojego pupila.',
+        iconColorClass: 'si-1',
+        heroGradient: 'linear-gradient(135deg,rgba(168,181,160,.3),rgba(168,181,160,.08))',
+        heroTagline: 'Regularna kontrola zdrowia to najlepsza inwestycja w długie i szczęśliwe życie Twojego pupila.',
+        whyTitle: 'Dlaczego profilaktyka jest tak ważna?',
+        whyParagraphs: [
+          'Zwierzęta instynktownie ukrywają objawy choroby — to ewolucyjny mechanizm obronny. Dlatego regularne badania profilaktyczne są kluczowe: pozwalają wykryć problemy zdrowotne na wczesnym etapie, zanim staną się poważne i kosztowne w leczeniu.',
+          'W klinice Pawsome profilaktyka to nie tylko szybki przegląd. To kompleksowa ocena stanu zdrowia Twojego pupila, obejmująca badanie fizykalne, analizę krwi, kontrolę jamy ustnej, ocenę kondycji ciała oraz rozmowę o codziennych nawykach i zachowaniu zwierzęcia.',
+          'Zalecamy badania profilaktyczne co najmniej raz w roku dla dorosłych zwierząt, a co 6 miesięcy dla seniorów (powyżej 7. roku życia) oraz szczeniąt i kociąt w pierwszym roku życia.'
+        ],
+        processTitle: 'Jak wygląda wizyta?',
+        processSteps: [
+          { bold: 'Wywiad z opiekunem', text: 'rozmawiamy o diecie, aktywności, zachowaniu i ewentualnych niepokojących objawach.' },
+          { bold: 'Badanie fizykalne', text: 'dokładna kontrola serca, płuc, jamy brzusznej, skóry, oczu, uszu i jamy ustnej.' },
+          { bold: 'Pobranie krwi', text: 'morfologia, biochemia i w razie potrzeby dodatkowe markery, np. tarczycowe.' },
+          { bold: 'Badanie kału i moczu', text: 'wykrywanie pasożytów, infekcji układu moczowego i zaburzeń metabolicznych.' },
+          { bold: 'Omówienie wyników', text: 'lekarz tłumaczy każdy parametr prostym językiem i wspólnie ustalamy dalszy plan opieki.' }
+        ],
+        benefitsTitle: 'Korzyści regularnych badań',
+        benefits: [
+          { emoji: '🔍', title: 'Wczesne wykrywanie chorób', text: 'Choroby nerek, cukrzyca czy nowotwory wykryte wcześnie mają znacznie lepsze rokowania.' },
+          { emoji: '💰', title: 'Oszczędność kosztów', text: 'Profilaktyka jest wielokrotnie tańsza niż leczenie zaawansowanych schorzeń.' },
+          { emoji: '📋', title: 'Historia zdrowia', text: 'Budujemy pełną dokumentację medyczną, dzięki której śledzimy trendy w zdrowiu pupila.' },
+          { emoji: '❤️', title: 'Spokój opiekuna', text: 'Regularne wizyty dają pewność, że Twój pupil jest zdrowy i zaopiekowany.' }
+        ],
+        ctaTitle: 'Umów badanie profilaktyczne',
+        ctaText: 'Zadbaj o zdrowie swojego pupila już dziś. Napisz do nas lub zadzwoń, by umówić wizytę.'
+      },
+      {
+        slug: 'szczepienia',
+        name: 'Szczepienia',
+        emoji: '💉',
+        duration: 20,
+        displayOrder: 2,
+        active: true,
+        shortDescription: 'Indywidualny harmonogram szczepień chroniący przed chorobami — dopasowany do każdego etapu życia zwierzęcia.',
+        iconColorClass: 'si-2',
+        heroGradient: 'linear-gradient(135deg,rgba(232,207,192,.4),rgba(232,207,192,.08))',
+        heroTagline: 'Indywidualny harmonogram szczepień dopasowany do każdego etapu życia Twojego pupila.',
+        whyTitle: 'Ochrona przez całe życie',
+        whyParagraphs: [
+          'Szczepienia to jeden z najskuteczniejszych sposobów ochrony zwierząt przed groźnymi chorobami zakaźnymi. W klinice Pawsome nie stosujemy uniwersalnego schematu — każdy harmonogram szczepień tworzymy indywidualnie, uwzględniając wiek, rasę, styl życia i stan zdrowia zwierzęcia.',
+          'Dla psów prowadzimy szczepienia przeciw nosówce, parwowirozie, leptospirozie, wściekliźnie oraz kennel cough. Koty szczepimy przeciw panleukopenii, kaliciwirozie, herpeswirusowi oraz wściekliźnie. Dla zwierząt podróżujących lub przebywających w hodowlach dostępne są dodatkowe szczepienia zalecane.',
+          'Szczególną uwagę zwracamy na szczenięta i kocięta, u których prawidłowy schemat szczepień pierwotnych jest fundamentem odporności na całe życie. Doradzamy również w kwestii szczepień przypominających, aby unikać zarówno niedostatecznej, jak i nadmiernej immunizacji.'
+        ],
+        processTitle: 'Jak przebiega wizyta szczepienowa?',
+        processSteps: [
+          { bold: 'Badanie przed szczepieniem', text: 'lekarz ocenia ogólny stan zdrowia zwierzęcia, by upewnić się, że jest gotowe na szczepienie.' },
+          { bold: 'Przegląd historii szczepień', text: 'sprawdzamy dotychczasowy harmonogram i dobieramy odpowiednią szczepionkę.' },
+          { bold: 'Podanie szczepionki', text: 'szybkie i bezbolesne podanie z zastosowaniem najwyższej jakości preparatów.' },
+          { bold: 'Obserwacja po szczepieniu', text: 'krótki pobyt w klinice, by upewnić się, że nie ma reakcji poszczepiennej.' },
+          { bold: 'Aktualizacja książeczki zdrowia', text: 'wpis do dokumentacji i przypomnienie o terminie kolejnego szczepienia.' }
+        ],
+        benefitsTitle: 'Dlaczego warto szczepić?',
+        benefits: [
+          { emoji: '🛡️', title: 'Ochrona przed chorobami', text: 'Szczepienia zapobiegają groźnym chorobom, które mogą być śmiertelne, zwłaszcza u młodych zwierząt.' },
+          { emoji: '🐕', title: 'Bezpieczeństwo stada', text: 'Zaszczepione zwierzę nie przenosi chorób na inne — chronisz nie tylko swojego pupila, ale i jego towarzyszy.' },
+          { emoji: '📜', title: 'Wymóg prawny', text: 'Szczepienie przeciw wściekliźnie jest w Polsce obowiązkowe dla psów — pomagamy utrzymać aktualną dokumentację.' },
+          { emoji: '✈️', title: 'Podróże bez stresu', text: 'Aktualne szczepienia i paszport weterynaryjny to podstawa bezproblemowych podróży z pupilem.' }
+        ],
+        ctaTitle: 'Umów szczepienie',
+        ctaText: 'Sprawdź, czy szczepienia Twojego pupila są aktualne. Napisz do nas, by umówić wizytę szczepienną.'
+      },
+      {
+        slug: 'stomatologia',
+        name: 'Stomatologia',
+        emoji: '🦷',
+        duration: 60,
+        displayOrder: 3,
+        active: true,
+        shortDescription: 'Profesjonalne czyszczenie, ekstrakcje i poradnictwo w zakresie higieny jamy ustnej. Zdrowe zęby to dłuższe i szczęśliwsze życie.',
+        iconColorClass: 'si-3',
+        heroGradient: 'linear-gradient(135deg,rgba(196,133,106,.2),rgba(196,133,106,.05))',
+        heroTagline: 'Zdrowe zęby to fundament dobrego samopoczucia. Profesjonalna opieka stomatologiczna dla Twojego pupila.',
+        whyTitle: 'Dlaczego higiena jamy ustnej jest kluczowa?',
+        whyParagraphs: [
+          'Choroby przyzębia dotyczą nawet 80% psów i 70% kotów powyżej 3. roku życia. Nieleczone prowadzą nie tylko do bólu i utraty zębów, ale mogą powodować poważne powikłania ogólnoustrojowe — bakterie z jamy ustnej mogą przedostawać się do krwi i uszkadzać serce, nerki oraz wątrobę.',
+          'W klinice Pawsome oferujemy pełen zakres usług stomatologicznych: od profilaktycznego czyszczenia kamienia nazębnego, przez leczenie chorób przyzębia, aż po złożone ekstrakcje i chirurgię jamy ustnej. Wszystkie zabiegi wykonujemy w znieczuleniu ogólnym, bo bezpieczeństwo i komfort pacjenta są dla nas priorytetem.',
+          'Doradzamy również w zakresie codziennej higieny jamy ustnej w domu — odpowiednie karma, gryzaki i technika szczotkowania zębów mogą znacząco wydłużyć czas między zabiegami profesjonalnymi.'
+        ],
+        processTitle: 'Przebieg zabiegu stomatologicznego',
+        processSteps: [
+          { bold: 'Konsultacja wstępna', text: 'ocena stanu jamy ustnej na wizycie kontrolnej, omówienie objawów i planu leczenia.' },
+          { bold: 'Badania przedoperacyjne', text: 'morfologia krwi i badanie biochemiczne, by upewnić się, że zwierzę jest gotowe do znieczulenia.' },
+          { bold: 'Znieczulenie i diagnostyka', text: 'pełna ocena jamy ustnej w znieczuleniu, w tym sondowanie kieszonek i zdjęcia RTG zębów.' },
+          { bold: 'Scaling i polerowanie', text: 'usunięcie kamienia nazębnego ultrasonografem, a następnie polerowanie powierzchni zębów.' },
+          { bold: 'Leczenie lub ekstrakcje', text: 'w razie potrzeby leczenie chorych zębów lub usunięcie tych, które nie nadają się do zachowania.' },
+          { bold: 'Wybudzenie i opieka', text: 'monitorowanie pacjenta po zabiegu, leki przeciwbólowe i zalecenia domowe.' }
+        ],
+        benefitsTitle: 'Korzyści profesjonalnej stomatologii',
+        benefits: [
+          { emoji: '😊', title: 'Koniec z bólem', text: 'Zwierzęta rzadko okazują ból zębów. Po zabiegu wielu właścicieli zauważa, że pupil staje się weselszy i bardziej aktywny.' },
+          { emoji: '🫀', title: 'Ochrona narządów', text: 'Eliminacja bakterii z jamy ustnej zmniejsza ryzyko chorób serca, nerek i wątroby.' },
+          { emoji: '🍖', title: 'Lepsze odżywianie', text: 'Zdrowe zęby oznaczają komfortowe jedzenie, lepsze trawienie i pełne wykorzystanie składników pokarmowych.' },
+          { emoji: '⏳', title: 'Dłuższe życie', text: 'Badania pokazują, że regularna opieka stomatologiczna może wydłużyć życie pupila nawet o 2-3 lata.' }
+        ],
+        ctaTitle: 'Zadbaj o uśmiech pupila',
+        ctaText: 'Umów wizytę stomatologiczną i zapewnij swojemu zwierzęciu zdrowe, bezbolesne zęby.'
+      },
+      {
+        slug: 'diagnostyka',
+        name: 'Diagnostyka',
+        emoji: '🔬',
+        duration: 30,
+        displayOrder: 4,
+        active: true,
+        shortDescription: 'Laboratorium na miejscu, radiografia cyfrowa i USG — szybkie i precyzyjne wyniki, gdy liczy się każda chwila.',
+        iconColorClass: 'si-4',
+        heroGradient: 'linear-gradient(135deg,rgba(201,169,110,.2),rgba(201,169,110,.05))',
+        heroTagline: 'Szybkie i precyzyjne wyniki dzięki nowoczesnemu laboratorium i sprzętowi obrazowemu na miejscu.',
+        whyTitle: 'Nowoczesne narzędzia diagnostyczne',
+        whyParagraphs: [
+          'Trafna diagnoza to podstawa skutecznego leczenia. W klinice Pawsome dysponujemy własnym laboratorium analitycznym oraz zaawansowanym sprzętem obrazowym, co pozwala nam uzyskiwać wyniki badań w ciągu minut, a nie dni. Gdy Twój pupil jest chory, liczy się każda chwila.',
+          'Nasze laboratorium wykonuje pełny panel hematologiczny i biochemiczny, analizę moczu i kału, testy endokrynologiczne oraz szybkie testy immunologiczne na najczęstsze choroby zakaźne. Do diagnostyki obrazowej wykorzystujemy cyfrowy aparat RTG z natychmiastową wizualizacją oraz ultrasonograf z sondami dostosowanymi zarówno do dużych, jak i małych pacjentów.',
+          'W przypadkach wymagających specjalistycznych badań — takich jak rezonans magnetyczny, tomografia komputerowa czy zaawansowana histopatologia — współpracujemy z wiodącymi ośrodkami referencyjnymi w Warszawie, zapewniając sprawną koordynację i ciągłość opieki.'
+        ],
+        processTitle: 'Jak wygląda proces diagnostyczny?',
+        processSteps: [
+          { bold: 'Wywiad i badanie kliniczne', text: 'lekarz zbiera szczegółowy wywiad i przeprowadza dokładne badanie fizykalne.' },
+          { bold: 'Dobór badań', text: 'na podstawie objawów dobieramy najbardziej informacyjne badania, unikając zbędnych procedur.' },
+          { bold: 'Pobranie próbek', text: 'krew, mocz, wymazy lub inne materiały pobierane są szybko i z minimalnym stresem dla pacjenta.' },
+          { bold: 'Diagnostyka obrazowa', text: 'RTG lub USG wykonywane są na miejscu, a wyniki widoczne natychmiast na ekranie.' },
+          { bold: 'Interpretacja i plan leczenia', text: 'lekarz omawia wyniki, stawia diagnozę i wspólnie z opiekunem ustala dalsze postępowanie.' }
+        ],
+        benefitsTitle: 'Nasze możliwości diagnostyczne',
+        benefits: [
+          { emoji: '🩸', title: 'Laboratorium na miejscu', text: 'Pełna morfologia i biochemia krwi w 15 minut. Bez czekania na wyniki z zewnętrznego laboratorium.' },
+          { emoji: '📷', title: 'RTG cyfrowe', text: 'Wysokiej rozdzielczości zdjęcia rentgenowskie z natychmiastowym podglądem — kości, klatka piersiowa, jama brzuszna.' },
+          { emoji: '📡', title: 'Ultrasonografia', text: 'Nieinwazyjna ocena narządów wewnętrznych, monitorowanie ciąży i wykrywanie zmian patologicznych.' },
+          { emoji: '⚡', title: 'Szybkie testy', text: 'Natychmiastowe testy na parwowirozę, FIV/FeLV, boreliozę i inne — wynik w kilka minut.' }
+        ],
+        ctaTitle: 'Potrzebujesz diagnostyki?',
+        ctaText: 'Skontaktuj się z nami, by umówić wizytę diagnostyczną. Im szybciej postawimy diagnozę, tym skuteczniej pomożemy.'
+      },
+      {
+        slug: 'chirurgia',
+        name: 'Chirurgia',
+        emoji: '🏥',
+        duration: 90,
+        displayOrder: 5,
+        active: true,
+        shortDescription: 'Od rutynowych kastracji i sterylizacji po złożone zabiegi ortopedyczne i na tkankach miękkich — zawsze z najwyższą precyzją.',
+        iconColorClass: 'si-5',
+        heroGradient: 'linear-gradient(135deg,rgba(61,74,58,.15),rgba(61,74,58,.03))',
+        heroTagline: 'Od rutynowych zabiegów po złożone operacje — zawsze z najwyższą precyzją i troską o pacjenta.',
+        whyTitle: 'Bezpieczna chirurgia na najwyższym poziomie',
+        whyParagraphs: [
+          'Chirurgia to dziedzina, w której doświadczenie i precyzja mają kluczowe znaczenie. Nasz zespół chirurgiczny, prowadzony przez lek. wet. Marka Wiśniewskiego z wieloletnim doświadczeniem, wykonuje szerokie spektrum zabiegów — od rutynowych kastracji i sterylizacji po zaawansowane operacje ortopedyczne i rekonstrukcyjne.',
+          'Sala operacyjna kliniki Pawsome wyposażona jest w nowoczesny sprzęt anestezjologiczny z monitoringiem wieloparametrowym, elektrokoagulację, zestaw do chirurgii ortopedycznej oraz oświetlenie zabiegowe klasy chirurgicznej. Bezpieczeństwo pacjenta zapewniamy dzięki stałemu monitorowaniu parametrów życiowych przez dedykowanego anestezjologa.',
+          'Wykonujemy między innymi: kastracje i sterylizacje, usuwanie guzów i zmian skórnych, zabiegi na jamie brzusznej (usunięcie ciała obcego, splenektomia, gastropeksja), operacje ortopedyczne (TPLO, stabilizacja złamań, resekcja głowy kości udowej) oraz chirurgię tkanek miękkich (korekty powiek, plastyka podniebienia, operacje krtani).'
+        ],
+        processTitle: 'Jak przygotować się do zabiegu?',
+        processSteps: [
+          { bold: 'Konsultacja przedoperacyjna', text: 'lekarz omawia wskazania, ryzyko i plan zabiegu. Odpowiadamy na wszystkie pytania.' },
+          { bold: 'Badania przedoperacyjne', text: 'morfologia, biochemia i ewentualnie RTG lub USG, by ocenić gotowość pacjenta do znieczulenia.' },
+          { bold: 'Głodówka przed zabiegiem', text: 'instruujemy o prawidłowym przygotowaniu: zwykle 8-12 godzin bez jedzenia, dostęp do wody do rana.' },
+          { bold: 'Zabieg operacyjny', text: 'pacjent jest pod stałym nadzorem anestezjologa, a chirurg wykonuje zabieg z pełną precyzją.' },
+          { bold: 'Wybudzenie i obserwacja', text: 'pacjent budzi się pod naszą opieką, z podanymi lekami przeciwbólowymi, w cichym, ciepłym pomieszczeniu.' },
+          { bold: 'Wizyta kontrolna', text: 'kontrola gojenia po 2-3 dniach i zdjęcie szwów po 10-14 dniach (w zależności od zabiegu).' }
+        ],
+        benefitsTitle: 'Dlaczego wybrać nasz zespół chirurgiczny?',
+        benefits: [
+          { emoji: '🎯', title: 'Doświadczony zespół', text: 'Nasi chirurdzy mają za sobą tysiące zabiegów i stale podnoszą kwalifikacje na szkoleniach krajowych i zagranicznych.' },
+          { emoji: '🖥️', title: 'Nowoczesny sprzęt', text: 'Monitoring wieloparametrowy, elektrokoagulacja i narzędzia ortopedyczne najwyższej klasy.' },
+          { emoji: '💊', title: 'Zarządzanie bólem', text: 'Wielomodalna analgezja — łączymy różne metody, by pacjent nie odczuwał bólu ani w trakcie, ani po zabiegu.' },
+          { emoji: '🤝', title: 'Pełna komunikacja', text: 'Na każdym etapie informujemy opiekuna o stanie pacjenta — od premedykacji po wybudzenie.' }
+        ],
+        ctaTitle: 'Konsultacja chirurgiczna',
+        ctaText: 'Skontaktuj się z nami, by omówić wskazania do zabiegu i umówić konsultację z chirurgiem.'
+      },
+      {
+        slug: 'plany-zywieniowe',
+        name: 'Plany żywieniowe',
+        emoji: '🐾',
+        duration: 30,
+        displayOrder: 6,
+        active: true,
+        shortDescription: 'Spersonalizowane diety i suplementacja opracowane przez naszych specjalistów, by Twój pupil cieszył się pełnią zdrowia i witalności.',
+        iconColorClass: 'si-6',
+        heroGradient: 'linear-gradient(135deg,rgba(139,111,78,.15),rgba(139,111,78,.03))',
+        heroTagline: 'Spersonalizowane diety i suplementacja, by Twój pupil cieszył się pełnią zdrowia i witalności.',
+        whyTitle: 'Żywienie to podstawa zdrowia',
+        whyParagraphs: [
+          'Odpowiednia dieta to jeden z najważniejszych filarów zdrowia i długowieczności zwierząt. Niestety, rynek karm jest tak rozległy i pełen marketingowych obietnic, że wielu opiekunów czuje się zagubionych. W klinice Pawsome pomagamy przebić się przez szum informacyjny i dobrać żywienie idealnie dopasowane do potrzeb Twojego pupila.',
+          'Nasze plany żywieniowe tworzymy w oparciu o aktualną wiedzę naukową z zakresu dietetyki weterynaryjnej. Uwzględniamy wiek, rasę, masę ciała, poziom aktywności, stan zdrowia i ewentualne schorzenia. Pracujemy zarówno z karmami gotowymi najwyższej jakości, jak i z dietami domowymi — zawsze z precyzyjnie skalkulowanym bilansem składników odżywczych.',
+          'Szczególną uwagę poświęcamy żywieniu leczniczemu: diety nerkowe, wątrobowe, hipoalergiczne, redukcyjne czy wspomagające leczenie cukrzycy. Każdy plan jest regularnie weryfikowany i modyfikowany w miarę zmieniających się potrzeb zwierzęcia.'
+        ],
+        processTitle: 'Jak tworzymy plan żywieniowy?',
+        processSteps: [
+          { bold: 'Konsultacja dietetyczna', text: 'szczegółowy wywiad o dotychczasowym żywieniu, upodobaniach, alergiach i problemach zdrowotnych.' },
+          { bold: 'Ocena kondycji ciała', text: 'pomiar masy ciała, ocena BCS (Body Condition Score) i w razie potrzeby badania laboratoryjne.' },
+          { bold: 'Opracowanie planu', text: 'dobór karmy lub kompozycja diety domowej z dokładnymi gramaturami i harmonogramem karmienia.' },
+          { bold: 'Suplementacja', text: 'jeśli jest potrzebna, dobieramy odpowiednie witaminy, minerały lub suplementy wspierające stawy, skórę czy trawienie.' },
+          { bold: 'Monitoring i korekty', text: 'wizyta kontrolna po 4-6 tygodniach, by ocenić efekty i dostosować plan do postępów.' }
+        ],
+        benefitsTitle: 'Co zyskuje Twój pupil?',
+        benefits: [
+          { emoji: '⚡', title: 'Więcej energii', text: 'Odpowiednio zbilansowana dieta to widoczna różnica w witalności i chęci do zabawy.' },
+          { emoji: '✨', title: 'Piękna sierść i skóra', text: 'Właściwe proporcje kwasów tłuszczowych i mikroelementów przekładają się na lśniącą, zdrową sierść.' },
+          { emoji: '⚖️', title: 'Optymalna waga', text: 'Kontrola kaloryczności i porcji pomaga utrzymać zdrową masę ciała lub bezpiecznie ją zredukować.' },
+          { emoji: '🩺', title: 'Wsparcie leczenia', text: 'Diety lecznicze są nieocenionym uzupełnieniem terapii chorób nerek, wątroby, alergii czy cukrzycy.' }
+        ],
+        ctaTitle: 'Zamów plan żywieniowy',
+        ctaText: 'Daj swojemu pupilowi to, co najlepsze. Umów konsultację dietetyczną i zacznij zmiany od zaraz.'
+      }
+    ];
+
+    log('Zapisuję ' + services.length + ' usług...');
+    var batch = db.batch();
+    services.forEach(function(svc) {
+      batch.set(db.collection('services').doc(svc.slug), svc);
+    });
+    return batch.commit();
+  }
+
+  function migrateDoctors(db) {
+    log('Aktualizuję kolekcję doctors (dodaję nowe pola)...');
+    return db.collection('doctors').get().then(function(snapshot) {
+      if (snapshot.empty) {
+        log('Brak lekarzy w kolekcji doctors — pomijam.', 'warn');
+        return;
+      }
+      var batch = db.batch();
+      var order = 1;
+      snapshot.forEach(function(doc) {
+        batch.update(doc.ref, {
+          bio: doc.data().bio || '',
+          photoURL: doc.data().photoURL || '',
+          displayOrder: doc.data().displayOrder || order,
+          showOnWebsite: doc.data().showOnWebsite !== undefined ? doc.data().showOnWebsite : true
+        });
+        order++;
+      });
+      return batch.commit();
+    });
+  }
+})();
+</script>
+</body>
+</html>
