@@ -432,7 +432,8 @@
 
       var inner = '<div class="sch-appt-time">' + escapeHtml(b.time) + ' – ' + escapeHtml(endTimeStr) + '</div>' +
         '<div class="sch-appt-patient">' + escapeHtml(b.patientName) + ' · ' + escapeHtml(b.petName) + '</div>' +
-        '<div class="sch-appt-service">' + escapeHtml(getServiceName(b.service)) + ' · ' + apptDur + ' min</div>';
+        '<div class="sch-appt-service">' + escapeHtml(getServiceName(b.service)) + ' · ' + apptDur + ' min</div>' +
+        (b.comment ? '<div class="sch-appt-comment">' + escapeHtml(b.comment) + '</div>' : '');
 
       return '<div class="sch-appt-block ' + cls + '" ' +
         'data-id="' + escapeAttr(b.id) + '" ' +
