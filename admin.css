@@ -319,6 +319,8 @@
   border-top: 1px solid rgba(0,0,0,0.06);
   padding-top: 2rem;
   overflow-x: auto;
+  overflow-y: auto;
+  max-height: calc(100vh - 320px);
   -webkit-overflow-scrolling: touch;
 }
 .schedule-title {
@@ -961,8 +963,7 @@
   font-size: 0.8rem;
   font-family: 'DM Sans', sans-serif;
   background: var(--cream);
-  width: 105px;
-  min-width: 0;
+  width: 88px;
 }
 .sched-pause-add-form input[type="time"]:focus { outline: none; border-color: var(--terra); }
 .sched-pause-add-form span { font-size: 0.8rem; color: #bbb; }
@@ -1065,8 +1066,7 @@
   font-size: 0.85rem;
   font-family: 'DM Sans', sans-serif;
   background: var(--cream);
-  width: 115px;
-  min-width: 0;
+  width: 100px;
 }
 .sched-time-inputs input[type="time"]:disabled {
   opacity: 0.4;
