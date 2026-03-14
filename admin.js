@@ -387,17 +387,16 @@
       axisHtml += '<div class="sch-hour-label" style="top:' + Math.round((am - openMin) * PX_PER_MIN) + 'px">' + minsToTime(am) + '</div>';
     }
 
+    var innerHtml = headerRowHtml +
+      '<div class="schedule-layout">' +
+        '<div class="sch-time-axis" style="height:' + totalHeight + 'px">' + axisHtml + '</div>' +
+        '<div class="sch-columns-wrap">' + columnsHtml + '</div>' +
+      '</div>';
     timelineEl.innerHTML =
       '<div class="schedule-wrap" id="schedule-wrap">' +
         '<h3 class="schedule-title">Harmonogram dnia</h3>' +
         (acceptedBookings.length === 0 && viewMode !== 'all' ? '<p class="sch-empty">Brak potwierdzonych wizyt</p>' : '') +
-        '<div class="sched-scroll">' +
-          headerRowHtml +
-          '<div class="schedule-layout">' +
-            '<div class="sch-time-axis" style="height:' + totalHeight + 'px">' + axisHtml + '</div>' +
-            '<div class="sch-columns-wrap">' + columnsHtml + '</div>' +
-          '</div>' +
-        '</div>' +
+        (showHeaders ? '<div class="sched-scroll">' + innerHtml + '</div>' : innerHtml) +
       '</div>';
     // Attach click handlers to appointment blocks
     timelineEl.querySelectorAll('.sch-appt-block').forEach(function(el) {
