@@ -335,6 +335,7 @@
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
+  cursor: grab;
 }
 .schedule-title {
   font-size: 1.05rem;

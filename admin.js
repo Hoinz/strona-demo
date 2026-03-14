@@ -481,6 +481,36 @@
         var s = timelineEl.querySelector('.sched-scroll');
         if (s) s.style.height = s.scrollHeight + 'px';
       });
+      // Mouse drag-to-scroll for desktop
+      (function() {
+        var s = timelineEl.querySelector('.sched-scroll');
+        if (!s) return;
+        var isDown = false, startX, scrollLeft;
+        s.addEventListener('mousedown', function(e) {
+          if (e.button !== 0) return;
+          isDown = true;
+          startX = e.pageX - s.offsetLeft;
+          scrollLeft = s.scrollLeft;
+          s.style.cursor = 'grabbing';
+          s.style.userSelect = 'none';
+        });
+        s.addEventListener('mouseleave', function() {
+          isDown = false;
+          s.style.cursor = 'grab';
+          s.style.userSelect = '';
+        });
+        s.addEventListener('mouseup', function() {
+          isDown = false;
+          s.style.cursor = 'grab';
+          s.style.userSelect = '';
+        });
+        s.addEventListener('mousemove', function(e) {
+          if (!isDown) return;
+          e.preventDefault();
+          var x = e.pageX - s.offsetLeft;
+          s.scrollLeft = scrollLeft - (x - startX);
+        });
+      })();
     }
     // Attach click handlers to appointment blocks
     timelineEl.querySelectorAll('.sch-appt-block').forEach(function(el) {
