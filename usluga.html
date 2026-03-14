@@ -41,7 +41,7 @@
 .service-404 h1{font-size:2rem;margin-bottom:1rem}
 .service-404 p{color:#666;margin-bottom:2rem}
 .service-404 a{color:var(--terra);text-decoration:none;font-weight:500}
-.service-unavailable-banner{background:#c4856a;color:#fff;text-align:center;padding:1rem 2rem;font-size:1.15rem;font-weight:600;letter-spacing:.02em;position:relative;z-index:2}
+.service-unavailable-banner{background:#b04a2a;color:#fff;text-align:center;padding:1.4rem 2rem;font-size:1.3rem;font-weight:700;letter-spacing:.03em;max-width:900px;margin:0 auto;border-radius:12px;position:relative;top:-2rem}
 @media(max-width:768px){.service-hero{padding:8rem 1.5rem 3rem}.service-section{padding:3rem 1.5rem}.benefits-grid{grid-template-columns:1fr}.service-cta{padding:3rem 1.5rem}}
 </style>
 </head>
@@ -162,11 +162,6 @@
     var isInactive = svc.active === false;
     var html = '';
 
-    // Unavailability banner for inactive services
-    if (isInactive) {
-      html += '<div class="service-unavailable-banner">Ta us\u0142uga jest czasowo nie dost\u0119pna</div>';
-    }
-
     // Hero
     html += '<section class="service-hero">';
     if (svc.heroGradient) {
@@ -178,6 +173,11 @@
     html += '<h1>' + escapeHtml(svc.name) + '</h1>';
     html += '<p class="tagline">' + escapeHtml(svc.heroTagline) + '</p>';
     html += '</section>';
+
+    // Unavailability banner for inactive services — placed after hero so it's visible
+    if (isInactive) {
+      html += '<div class="service-unavailable-banner">Ta usługa jest czasowo nie dostępna</div>';
+    }
 
     // Why section
     html += '<section class="service-section">';

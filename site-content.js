@@ -77,7 +77,9 @@
       if (el) {
         var gridHtml = '';
         services.forEach(function(svc) {
-          gridHtml += '<a href="usluga.html?slug=' + encodeURIComponent(svc.slug) + '" class="service-card">' +
+          var cardClass = 'service-card' + (svc.active === false ? ' inactive' : '');
+          gridHtml += '<a href="usluga.html?slug=' + encodeURIComponent(svc.slug) + '" class="' + cardClass + '">' +
+            (svc.active === false ? '<div class="inactive-label">Niedostępna</div>' : '') +
             '<div class="service-icon ' + escapeHtml(svc.iconColorClass) + '">' + escapeHtml(svc.emoji) + '</div>' +
             '<h3>' + escapeHtml(svc.name) + '</h3>' +
             '<p>' + escapeHtml(svc.shortDescription) + '</p>' +
