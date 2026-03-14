@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Usługa — Pawsome Klinika Weterynaryjna</title>
+<meta name="description" content="Usługa weterynaryjna w klinice Pawsome.">
+<meta name="theme-color" content="#FAF6F0">
+<link rel="icon" type="image/png" href="logo.png">
+<link rel="preload" href="fonts/dmsans-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/playfair-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="shared.css">
+<style>
+.service-hero{padding:10rem 4rem 5rem;text-align:center;position:relative;overflow:hidden}
+.service-hero::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(196,133,106,.2),rgba(196,133,106,.05));z-index:0}
+.service-hero>*{position:relative;z-index:1}
+.service-hero-icon{font-size:5rem;margin-bottom:1.5rem;display:block}
+.service-hero h1{font-size:clamp(2.2rem,4vw,3.5rem);margin-bottom:1rem;line-height:1.15}
+.service-hero .tagline{font-size:1.15rem;color:#666;max-width:600px;margin:0 auto}
+.service-section{padding:5rem 4rem;max-width:900px;margin:0 auto}
+.service-section h2{font-size:clamp(1.8rem,3vw,2.5rem);margin-bottom:1.5rem;text-align:center}
+.service-section p{font-size:1.05rem;color:#555;margin-bottom:1.2rem;line-height:1.8}
+.process-steps{list-style:none;counter-reset:step;margin:2rem 0}
+.process-steps li{counter-increment:step;padding:1.5rem 1.5rem 1.5rem 4.5rem;position:relative;background:var(--white);border-radius:16px;margin-bottom:1rem;border:1px solid rgba(0,0,0,.04);font-size:1rem;color:#555}
+.process-steps li::before{content:counter(step);position:absolute;left:1.5rem;top:50%;transform:translateY(-50%);width:32px;height:32px;border-radius:50%;background:var(--deep-olive);color:var(--cream);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:.85rem}
+.process-steps li strong{color:var(--charcoal)}
+.benefits-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:1.5rem;margin-top:2rem}
+.benefit-card{background:var(--white);border-radius:20px;padding:2rem;border:1px solid rgba(0,0,0,.04);text-align:center;transition:transform .3s ease,box-shadow .3s ease}
+.benefit-card:hover{transform:translateY(-4px);box-shadow:0 16px 40px rgba(0,0,0,.06)}
+.benefit-icon{font-size:2.2rem;margin-bottom:1rem}
+.benefit-card h3{font-size:1.1rem;margin-bottom:.5rem}
+.benefit-card p{font-size:.9rem;color:#888;line-height:1.6}
+.service-cta{background:var(--deep-olive);color:var(--cream);padding:5rem 4rem;text-align:center}
+.service-cta h2{font-size:clamp(1.8rem,3vw,2.5rem);margin-bottom:1rem;color:var(--cream)}
+.service-cta p{color:rgba(255,255,255,.7);margin-bottom:2rem;font-size:1.05rem}
+.service-cta .btn-primary{background:var(--terra);color:var(--cream);padding:1rem 2.4rem;border-radius:50px;text-decoration:none;font-weight:500;font-size:1rem;display:inline-flex;align-items:center;gap:.5rem;transition:all .35s ease;border:none;cursor:pointer}
+.service-cta .btn-primary:hover{background:var(--gold);transform:translateY(-2px);box-shadow:0 12px 32px rgba(0,0,0,.2)}
+.service-cta .phone{margin-top:1.5rem;font-size:1.1rem}
+.service-cta .phone a{color:var(--gold);text-decoration:none;font-weight:600}
+.service-404{padding:12rem 2rem 6rem;text-align:center}
+.service-404 h1{font-size:2rem;margin-bottom:1rem}
+.service-404 p{color:#666;margin-bottom:2rem}
+.service-404 a{color:var(--terra);text-decoration:none;font-weight:500}
+@media(max-width:768px){.service-hero{padding:8rem 1.5rem 3rem}.service-section{padding:3rem 1.5rem}.benefits-grid{grid-template-columns:1fr}.service-cta{padding:3rem 1.5rem}}
+</style>
+</head>
+<body>
+
+<nav id="navbar">
+  <a href="index.html" class="logo">
+    <div class="logo-icon">
+      <img src="logo.png" alt="Logo Pawsome">
+    </div>
+    <span class="logo-text">Pawsome</span>
+  </a>
+  <div class="nav-links" id="nav-links">
+    <a href="index.html#uslugi">Usługi</a>
+    <a href="index.html#o-nas">O nas</a>
+    <a href="index.html#zespol">Zespół</a>
+    <a href="index.html#opinie">Opinie</a>
+    <a href="umow-wizyte.html" class="nav-cta">Umów wizytę 📅</a>
+  </div>
+  <button class="hamburger" aria-label="Menu" aria-expanded="false" aria-controls="nav-links"><span></span><span></span><span></span></button>
+</nav>
+
+<main id="service-main">
+  <div style="text-align:center;padding:12rem 2rem 4rem;color:#888">Ładowanie...</div>
+</main>
+
+<footer role="contentinfo">
+  <div class="footer-grid">
+    <div class="footer-brand">
+      <a href="index.html" class="logo">
+        <div class="logo-icon">
+          <img src="logo.png" alt="Logo Pawsome">
+        </div>
+        <span class="logo-text">Pawsome</span>
+      </a>
+      <p>Weterynaria pełna empatii, w której Twój pupil traktowany jest jak rodzina. Obsługujemy Toruń i okolice od 2009 roku.</p>
+    </div>
+    <div class="footer-col" id="footer-services-col">
+      <h4>Usługi</h4>
+      <a href="usluga.html?slug=badania-profilaktyczne">Badania profilaktyczne</a>
+      <a href="usluga.html?slug=szczepienia">Szczepienia</a>
+      <a href="usluga.html?slug=stomatologia">Stomatologia</a>
+      <a href="usluga.html?slug=chirurgia">Chirurgia</a>
+      <a href="usluga.html?slug=diagnostyka">Diagnostyka</a>
+    </div>
+    <div class="footer-col"><h4>Klinika</h4><a href="index.html#o-nas">O nas</a><a href="index.html#zespol">Nasz zespół</a><a href="index.html#opinie">Opinie</a></div>
+    <div class="footer-col"><h4>Kontakt</h4><a href="mailto:hello@pawsomevet.pl">E-mail</a><a href="tel:+48225557799">Telefon</a><a href="index.html#kontakt">Dane kontaktowe</a></div>
+  </div>
+  <div class="footer-bottom">
+    <span>&copy; 2026 Pawsome Klinika Weterynaryjna. Wszelkie prawa zastrzeżone.</span>
+    <div class="social-links"><a href="#" class="social-link" aria-label="Facebook">f</a><a href="#" class="social-link" aria-label="Instagram">ig</a><a href="#" class="social-link" aria-label="Twitter">𝕏</a></div>
+  </div>
+</footer>
+
+<script>
+  const navbar = document.getElementById('navbar');
+  const hamburger = document.querySelector('.hamburger');
+  const navLinks = document.querySelector('.nav-links');
+  window.addEventListener('scroll', () => { navbar.classList.toggle('scrolled', window.scrollY > 40); });
+  hamburger.addEventListener('click', () => { const isOpen = navLinks.classList.toggle('active'); hamburger.classList.toggle('active'); hamburger.setAttribute('aria-expanded', isOpen); });
+  navLinks.querySelectorAll('a').forEach(link => { link.addEventListener('click', () => { navLinks.classList.remove('active'); hamburger.classList.remove('active'); hamburger.setAttribute('aria-expanded', 'false'); }); });
+</script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script>
+(function() {
+  'use strict';
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  var params = new URLSearchParams(window.location.search);
+  var slug = params.get('slug');
+  var mainEl = document.getElementById('service-main');
+
+  if (!slug) {
+    show404();
+    return;
+  }
+
+  var db = window.PawsomeDB;
+  if (!db) {
+    show404();
+    return;
+  }
+
+  db.collection('services').doc(slug).get().then(function(doc) {
+    if (!doc.exists || doc.data().active === false) {
+      show404();
+      reportError('Service not found or inactive: ' + slug);
+      return;
+    }
+    var svc = doc.data();
+    renderService(svc);
+    reportHealth();
+  }).catch(function(err) {
+    show404();
+    reportError('Failed to load service ' + slug + ': ' + err.message);
+  });
+
+  function show404() {
+    mainEl.innerHTML =
+      '<div class="service-404">' +
+        '<h1>Nie znaleziono usługi</h1>' +
+        '<p>Przepraszamy, ta strona nie istnieje lub usługa jest nieaktywna.</p>' +
+        '<a href="index.html#uslugi">Wróć do listy usług</a>' +
+      '</div>';
+  }
+
+  function renderService(svc) {
+    document.title = svc.name + ' — Pawsome Klinika Weterynaryjna';
+    var meta = document.querySelector('meta[name="description"]');
+    if (meta) meta.setAttribute('content', svc.heroTagline || svc.shortDescription || '');
+
+    var html = '';
+
+    // Hero
+    html += '<section class="service-hero">';
+    if (svc.heroGradient) {
+      // Sanitize CSS value to prevent injection
+      var safeGradient = svc.heroGradient.replace(/[<>"';{}]/g, '');
+      html += '<style>.service-hero::before{background:' + safeGradient + '}</style>';
+    }
+    html += '<span class="service-hero-icon">' + escapeHtml(svc.emoji) + '</span>';
+    html += '<h1>' + escapeHtml(svc.name) + '</h1>';
+    html += '<p class="tagline">' + escapeHtml(svc.heroTagline) + '</p>';
+    html += '</section>';
+
+    // Why section
+    html += '<section class="service-section">';
+    html += '<h2>' + escapeHtml(svc.whyTitle) + '</h2>';
+    if (svc.whyParagraphs) {
+      svc.whyParagraphs.forEach(function(p) {
+        html += '<p>' + escapeHtml(p) + '</p>';
+      });
+    }
+    html += '</section>';
+
+    // Process steps
+    html += '<section class="service-section">';
+    html += '<h2>' + escapeHtml(svc.processTitle) + '</h2>';
+    html += '<ol class="process-steps">';
+    if (svc.processSteps) {
+      svc.processSteps.forEach(function(step) {
+        html += '<li><strong>' + escapeHtml(step.bold) + '</strong> — ' + escapeHtml(step.text) + '</li>';
+      });
+    }
+    html += '</ol></section>';
+
+    // Benefits
+    html += '<section class="service-section">';
+    html += '<h2>' + escapeHtml(svc.benefitsTitle) + '</h2>';
+    html += '<div class="benefits-grid">';
+    if (svc.benefits) {
+      svc.benefits.forEach(function(b) {
+        html += '<div class="benefit-card">';
+        html += '<div class="benefit-icon">' + escapeHtml(b.emoji) + '</div>';
+        html += '<h3>' + escapeHtml(b.title) + '</h3>';
+        html += '<p>' + escapeHtml(b.text) + '</p>';
+        html += '</div>';
+      });
+    }
+    html += '</div></section>';
+
+    // Append main content
+    mainEl.innerHTML = html;
+
+    // CTA section (outside main, after it)
+    var ctaSection = document.createElement('section');
+    ctaSection.className = 'service-cta';
+    ctaSection.innerHTML =
+      '<h2>' + escapeHtml(svc.ctaTitle) + '</h2>' +
+      '<p>' + escapeHtml(svc.ctaText) + '</p>' +
+      '<a href="umow-wizyte.html?service=' + encodeURIComponent(svc.slug) + '" class="btn-primary">Umów wizytę →</a>' +
+      '<div class="phone">lub zadzwoń: <a href="tel:+48225557799">+48 22 555 77 99</a></div>';
+    mainEl.parentNode.insertBefore(ctaSection, mainEl.nextSibling);
+  }
+
+  function reportError(msg) {
+    try {
+      db.collection('siteErrors').add({
+        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+        page: 'usluga',
+        error: msg
+      });
+    } catch(e) {}
+  }
+
+  function reportHealth() {
+    try {
+      db.collection('siteContent').doc('_health').set({
+        lastSuccess: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+    } catch(e) {}
+  }
+})();
+</script>
+<script>if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js')</script>
+</body>
+</html>

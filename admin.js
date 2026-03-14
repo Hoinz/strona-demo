@@ -40,6 +40,7 @@
           loadDoctorInfo(user.uid, function() {
             initDashboard();
             dashboardInitialized = true;
+            checkContentHealth();
           });
         } else {
           loadBookings();
@@ -638,15 +639,16 @@
     overlay.id = 'appt-modal-overlay';
     overlay.className = 'appt-modal-overlay';
 
-    var serviceOptions = [
-      ['badania-profilaktyczne', 'Badania profilaktyczne'],
-      ['szczepienia', 'Szczepienia'],
-      ['stomatologia', 'Stomatologia'],
-      ['chirurgia', 'Chirurgia'],
-      ['diagnostyka', 'Diagnostyka'],
-      ['plany-zywieniowe', 'Plany żywieniowe']
-    ].map(function(s) {
-      return '<option value="' + s[0] + '"' + (booking.service === s[0] ? ' selected' : '') + '>' + s[1] + '</option>';
+    var services = (window.PawsomeBooking && window.PawsomeBooking.SERVICES) || {
+      'badania-profilaktyczne': 'Badania profilaktyczne',
+      'szczepienia': 'Szczepienia',
+      'stomatologia': 'Stomatologia',
+      'chirurgia': 'Chirurgia',
+      'diagnostyka': 'Diagnostyka',
+      'plany-zywieniowe': 'Plany żywieniowe'
+    };
+    var serviceOptions = Object.keys(services).map(function(key) {
+      return '<option value="' + key + '"' + (booking.service === key ? ' selected' : '') + '>' + escapeHtml(services[key]) + '</option>';
     }).join('');
 
     overlay.innerHTML =
@@ -1610,6 +1612,875 @@
     overlay.addEventListener('transitionend', function() {
       if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
     }, { once: true });
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // ── MAIN TAB SWITCHING ──
+  // ══════════════════════════════════════════════════════════
+  var mainTabs = document.querySelectorAll('.admin-main-tab');
+  var viewBookings = document.getElementById('view-bookings');
+  var viewEditor = document.getElementById('view-editor');
+  var editorLoaded = false;
+
+  mainTabs.forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      mainTabs.forEach(function(t) { t.classList.remove('active'); });
+      this.classList.add('active');
+      var target = this.dataset.mainTab;
+      if (target === 'bookings') {
+        viewBookings.style.display = '';
+        viewEditor.style.display = 'none';
+      } else if (target === 'editor') {
+        viewBookings.style.display = 'none';
+        viewEditor.style.display = '';
+        if (!editorLoaded) {
+          editorLoaded = true;
+          loadEditorContent();
+        }
+      }
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════
+  // ── CONTENT HEALTH MONITOR ──
+  // ══════════════════════════════════════════════════════════
+  function checkContentHealth() {
+    var db = window.PawsomeDB;
+    if (!db) return;
+    var banner = document.getElementById('content-health-banner');
+    if (!banner) return;
+
+    var warnings = [];
+    var cutoff = new Date();
+    cutoff.setHours(cutoff.getHours() - 24);
+
+    Promise.all([
+      db.collection('siteErrors').where('timestamp', '>', cutoff).get(),
+      db.collection('siteContent').doc('_health').get()
+    ]).then(function(results) {
+      var errorSnap = results[0];
+      var healthDoc = results[1];
+
+      if (!errorSnap.empty) {
+        var errCount = errorSnap.size;
+        var lastErr = null;
+        errorSnap.forEach(function(doc) {
+          var d = doc.data();
+          if (!lastErr || (d.timestamp && d.timestamp.toDate() > lastErr)) lastErr = d.timestamp.toDate();
+        });
+        warnings.push('<strong>Uwaga:</strong> wykryto ' + errCount + ' problem' + (errCount === 1 ? '' : errCount < 5 ? 'y' : 'ów') + ' z ładowaniem treści strony w ostatnich 24h.' + (lastErr ? ' Ostatni: ' + lastErr.toLocaleString('pl-PL') : ''));
+      }
+
+      if (healthDoc.exists) {
+        var health = healthDoc.data();
+        if (health.lastSuccess) {
+          var last = health.lastSuccess.toDate();
+          if (last < cutoff) {
+            warnings.push('<strong>Uwaga:</strong> treść strony nie była pomyślnie ładowana od ponad 24h (ostatnio: ' + last.toLocaleString('pl-PL') + ').');
+          }
+        }
+      } else {
+        warnings.push('<strong>Uwaga:</strong> brak danych o ładowaniu treści strony — upewnij się, że migracja została wykonana.');
+      }
+
+      if (warnings.length > 0) {
+        banner.innerHTML = warnings.join('<br>');
+        banner.style.display = '';
+      }
+    }).catch(function() {});
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // ── EDITOR ──
+  // ══════════════════════════════════════════════════════════
+  var editorData = {};
+
+  function loadEditorContent() {
+    var db = window.PawsomeDB;
+    if (!db) return;
+    var container = document.getElementById('editor-container');
+    container.innerHTML = '<div style="text-align:center;padding:2rem;color:#888">Ładowanie treści...</div>';
+
+    Promise.all([
+      db.collection('siteContent').doc('hero').get(),
+      db.collection('siteContent').doc('stats').get(),
+      db.collection('siteContent').doc('servicesSection').get(),
+      db.collection('siteContent').doc('about').get(),
+      db.collection('siteContent').doc('testimonials').get(),
+      db.collection('siteContent').doc('contact').get(),
+      db.collection('services').orderBy('displayOrder').get(),
+      db.collection('doctors').orderBy('displayOrder').get()
+    ]).then(function(results) {
+      editorData.hero = results[0].exists ? results[0].data() : {};
+      editorData.stats = results[1].exists ? results[1].data() : { items: [] };
+      editorData.servicesSection = results[2].exists ? results[2].data() : {};
+      editorData.about = results[3].exists ? results[3].data() : {};
+      editorData.testimonials = results[4].exists ? results[4].data() : { items: [] };
+      editorData.contact = results[5].exists ? results[5].data() : {};
+      editorData.services = [];
+      results[6].forEach(function(doc) { editorData.services.push(Object.assign({ _id: doc.id }, doc.data())); });
+      editorData.doctors = [];
+      results[7].forEach(function(doc) { editorData.doctors.push(Object.assign({ _id: doc.id }, doc.data())); });
+      renderEditor(container);
+    }).catch(function(err) {
+      container.innerHTML = '<div style="text-align:center;padding:2rem;color:#C62828">Błąd ładowania treści: ' + (err.message || err) + '</div>';
+    });
+  }
+
+  function renderEditor(container) {
+    var html = '';
+
+    // ── Hero Section ──
+    html += editorSection('Hero (Nagłówek strony)', function() {
+      var d = editorData.hero;
+      return field('Etykieta sekcji', 'hero-sectionLabel', d.sectionLabel) +
+        field('Tytuł (przed)', 'hero-titleBefore', d.titleBefore) +
+        field('Tytuł (wyróżnienie)', 'hero-titleEmphasis', d.titleEmphasis) +
+        field('Tytuł (po)', 'hero-titleAfter', d.titleAfter) +
+        fieldTA('Podtytuł', 'hero-subtitle', d.subtitle) +
+        saveBtn('hero');
+    });
+
+    // ── Stats Section ──
+    html += editorSection('Statystyki', function() {
+      var d = editorData.stats;
+      var items = d.items || [];
+      var out = '<div id="stats-items-list">';
+      items.forEach(function(item, i) {
+        out += dynamicItem('stats', i, item.number, item.label, 'Liczba', 'Opis');
+      });
+      out += '</div>';
+      out += addBtn('Dodaj statystykę', 'stats');
+      out += saveBtn('stats');
+      return out;
+    });
+
+    // ── Services Header ──
+    html += editorSection('Usługi (nagłówek)', function() {
+      var d = editorData.servicesSection;
+      return field('Etykieta sekcji', 'svcH-sectionLabel', d.sectionLabel) +
+        field('Tytuł', 'svcH-title', d.title) +
+        fieldTA('Podtytuł', 'svcH-subtitle', d.subtitle) +
+        saveBtn('servicesSection');
+    });
+
+    // ── Services List ──
+    html += editorSection('Usługi (lista)', function() {
+      var out = '<div id="services-list">';
+      editorData.services.forEach(function(svc) {
+        out += listItem(svc.emoji + ' ' + svc.name, svc.active ? 'Aktywna' : 'Nieaktywna', 'service', svc._id);
+      });
+      out += '</div>';
+      out += addBtn('Dodaj usługę', 'service');
+      return out;
+    });
+
+    // ── About ──
+    html += editorSection('O nas', function() {
+      var d = editorData.about;
+      return field('Etykieta sekcji', 'about-sectionLabel', d.sectionLabel) +
+        field('Tytuł', 'about-title', d.title) +
+        field('Emoji', 'about-emoji', d.emoji) +
+        fieldTA('Akapit 1', 'about-paragraph1', d.paragraph1) +
+        fieldTA('Akapit 2', 'about-paragraph2', d.paragraph2) +
+        '<label style="font-size:.85rem;font-weight:500;color:#555;margin:1rem 0 .35rem;display:block">Wartości</label>' +
+        '<div id="about-values-list">' + (function() {
+          var vals = d.values || [];
+          var v = '';
+          vals.forEach(function(val, i) {
+            v += dynamicItem('about-values', i, val.title, val.text, 'Tytuł', 'Opis');
+          });
+          return v;
+        })() + '</div>' +
+        addBtn('Dodaj wartość', 'about-values') +
+        saveBtn('about');
+    });
+
+    // ── Team ──
+    html += editorSection('Zespół', function() {
+      var out = '<div id="doctors-list">';
+      editorData.doctors.forEach(function(doc) {
+        out += listItem(doc.name, doc.specialty || '', 'doctor', doc._id);
+      });
+      out += '</div>';
+      out += addBtn('Dodaj lekarza do strony', 'doctor');
+      return out;
+    });
+
+    // ── Testimonials ──
+    html += editorSection('Opinie', function() {
+      var d = editorData.testimonials;
+      var out = field('Etykieta sekcji', 'test-sectionLabel', d.sectionLabel) +
+        field('Tytuł', 'test-title', d.title);
+      out += '<div id="testimonials-list">';
+      var items = d.items || [];
+      items.forEach(function(t, i) {
+        out += listItem(t.authorName, t.stars + ' gwiazdek', 'testimonial', i);
+      });
+      out += '</div>';
+      out += addBtn('Dodaj opinię', 'testimonial');
+      out += saveBtn('testimonials');
+      return out;
+    });
+
+    // ── Contact ──
+    html += editorSection('Kontakt', function() {
+      var d = editorData.contact;
+      return field('Etykieta sekcji', 'cont-sectionLabel', d.sectionLabel) +
+        field('Tytuł', 'cont-title', d.title) +
+        fieldTA('Podtytuł', 'cont-subtitle', d.subtitle) +
+        '<div class="editor-field-row">' +
+          field('Adres', 'cont-address', d.address) +
+          field('Miasto', 'cont-addressCity', d.addressCity) +
+        '</div>' +
+        '<div class="editor-field-row">' +
+          field('Telefon', 'cont-phone', d.phone) +
+          field('Info telefon', 'cont-phoneNote', d.phoneNote) +
+        '</div>' +
+        '<div class="editor-field-row">' +
+          field('Email', 'cont-email', d.email) +
+          field('Info email', 'cont-emailNote', d.emailNote) +
+        '</div>' +
+        '<div class="editor-field-row">' +
+          field('Godziny', 'cont-hours', d.hours) +
+          field('Info godziny', 'cont-hoursNote', d.hoursNote) +
+        '</div>' +
+        field('Tytuł CTA', 'cont-ctaTitle', d.ctaTitle) +
+        fieldTA('Tekst CTA', 'cont-ctaText', d.ctaText) +
+        field('Przycisk CTA', 'cont-ctaButtonText', d.ctaButtonText) +
+        saveBtn('contact');
+    });
+
+    container.innerHTML = html;
+    wireEditorEvents(container);
+  }
+
+  // ── Editor helpers ──
+  function esc(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+  function field(label, id, defaultVal) {
+    return '<div class="editor-field"><label for="ed-' + id + '">' + esc(label) + '</label><input type="text" id="ed-' + id + '" value="' + esc(defaultVal) + '"></div>';
+  }
+  function fieldTA(label, id, defaultVal) {
+    return '<div class="editor-field"><label for="ed-' + id + '">' + esc(label) + '</label><textarea id="ed-' + id + '">' + esc(defaultVal) + '</textarea></div>';
+  }
+  function editorSection(title, contentFn) {
+    return '<div class="editor-section"><div class="editor-section-header" onclick="this.parentElement.classList.toggle(\'open\')">' +
+      esc(title) + '<span class="toggle-icon">▼</span></div><div class="editor-section-body">' +
+      contentFn() + '</div></div>';
+  }
+  function saveBtn(sectionId) {
+    return '<button class="editor-save-btn" data-save="' + sectionId + '">Zapisz</button>' +
+      '<div class="editor-success" id="msg-' + sectionId + '">Zapisano pomyślnie!</div>' +
+      '<div class="editor-error" id="err-' + sectionId + '"></div>';
+  }
+  function addBtn(label, type) {
+    return '<button class="editor-add-btn" data-add="' + type + '">+ ' + esc(label) + '</button>';
+  }
+  function dynamicItem(prefix, idx, val1, val2, ph1, ph2) {
+    return '<div class="editor-dynamic-item" data-prefix="' + prefix + '" data-idx="' + idx + '">' +
+      '<input type="text" value="' + esc(val1) + '" placeholder="' + esc(ph1) + '" data-field="a">' +
+      '<input type="text" value="' + esc(val2) + '" placeholder="' + esc(ph2) + '" data-field="b">' +
+      '<button class="editor-remove-item-btn" data-remove="' + prefix + '" data-idx="' + idx + '">×</button></div>';
+  }
+  function listItem(title, subtitle, type, id) {
+    return '<div class="editor-list-item" data-type="' + type + '" data-id="' + esc(String(id)) + '">' +
+      '<div class="editor-list-item-info"><strong>' + esc(title) + '</strong><small>' + esc(subtitle) + '</small></div>' +
+      '<div class="editor-list-item-actions">' +
+        '<button class="editor-edit-btn" data-edit-type="' + type + '" data-edit-id="' + esc(String(id)) + '">Edytuj</button>' +
+        '<button class="editor-delete-btn" data-del-type="' + type + '" data-del-id="' + esc(String(id)) + '">Usuń</button>' +
+      '</div></div>';
+  }
+
+  function showMsg(id, ok, text) {
+    var okEl = document.getElementById('msg-' + id);
+    var errEl = document.getElementById('err-' + id);
+    if (ok) {
+      if (okEl) { okEl.textContent = text || 'Zapisano pomyślnie!'; okEl.classList.add('visible'); }
+      if (errEl) errEl.classList.remove('visible');
+      setTimeout(function() { if (okEl) okEl.classList.remove('visible'); }, 3000);
+    } else {
+      if (errEl) { errEl.textContent = text || 'Błąd zapisu'; errEl.classList.add('visible'); }
+      if (okEl) okEl.classList.remove('visible');
+      setTimeout(function() { if (errEl) errEl.classList.remove('visible'); }, 5000);
+    }
+  }
+
+  // ── Wire editor events ──
+  function wireEditorEvents(container) {
+    var db = window.PawsomeDB;
+
+    // Save buttons
+    container.querySelectorAll('[data-save]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var section = this.dataset.save;
+        btn.disabled = true;
+        var data = collectSectionData(section);
+        db.collection('siteContent').doc(section).set(data)
+          .then(function() { showMsg(section, true); btn.disabled = false; })
+          .catch(function(e) { showMsg(section, false, e.message); btn.disabled = false; });
+      });
+    });
+
+    // Add dynamic items
+    container.querySelectorAll('[data-add]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var type = this.dataset.add;
+        if (type === 'stats') { addDynamicItem('stats-items-list', 'stats', 'Liczba', 'Opis'); }
+        else if (type === 'about-values') { addDynamicItem('about-values-list', 'about-values', 'Tytuł', 'Opis'); }
+        else if (type === 'service') { openServiceModal(null); }
+        else if (type === 'doctor') { openDoctorModal(null); }
+        else if (type === 'testimonial') { openTestimonialModal(null); }
+      });
+    });
+
+    // Remove dynamic items
+    container.addEventListener('click', function(e) {
+      if (e.target.dataset.remove) {
+        e.target.closest('.editor-dynamic-item').remove();
+      }
+    });
+
+    // Edit/Delete list items
+    container.addEventListener('click', function(e) {
+      var btn = e.target;
+      if (btn.dataset.editType) {
+        handleEditClick(btn.dataset.editType, btn.dataset.editId);
+      }
+      if (btn.dataset.delType) {
+        handleDeleteClick(btn.dataset.delType, btn.dataset.delId);
+      }
+    });
+  }
+
+  function addDynamicItem(listId, prefix, ph1, ph2) {
+    var list = document.getElementById(listId);
+    if (!list) return;
+    var idx = list.children.length;
+    var div = document.createElement('div');
+    div.className = 'editor-dynamic-item';
+    div.dataset.prefix = prefix;
+    div.dataset.idx = idx;
+    div.innerHTML =
+      '<input type="text" value="" placeholder="' + esc(ph1) + '" data-field="a">' +
+      '<input type="text" value="" placeholder="' + esc(ph2) + '" data-field="b">' +
+      '<button class="editor-remove-item-btn" data-remove="' + prefix + '" data-idx="' + idx + '">×</button>';
+    div.querySelector('[data-remove]').addEventListener('click', function() { div.remove(); });
+    list.appendChild(div);
+  }
+
+  function collectDynamicItems(listId) {
+    var list = document.getElementById(listId);
+    if (!list) return [];
+    var items = [];
+    list.querySelectorAll('.editor-dynamic-item').forEach(function(row) {
+      var a = row.querySelector('[data-field="a"]').value.trim();
+      var b = row.querySelector('[data-field="b"]').value.trim();
+      if (a || b) items.push({ a: a, b: b });
+    });
+    return items;
+  }
+
+  function val(id) {
+    var el = document.getElementById('ed-' + id);
+    return el ? el.value : '';
+  }
+
+  function collectSectionData(section) {
+    if (section === 'hero') {
+      return {
+        sectionLabel: val('hero-sectionLabel'),
+        titleBefore: val('hero-titleBefore'),
+        titleEmphasis: val('hero-titleEmphasis'),
+        titleAfter: val('hero-titleAfter'),
+        subtitle: val('hero-subtitle')
+      };
+    }
+    if (section === 'stats') {
+      var items = collectDynamicItems('stats-items-list');
+      return { items: items.map(function(i) { return { number: i.a, label: i.b }; }) };
+    }
+    if (section === 'servicesSection') {
+      return {
+        sectionLabel: val('svcH-sectionLabel'),
+        title: val('svcH-title'),
+        subtitle: val('svcH-subtitle')
+      };
+    }
+    if (section === 'about') {
+      var vals = collectDynamicItems('about-values-list');
+      return {
+        sectionLabel: val('about-sectionLabel'),
+        title: val('about-title'),
+        emoji: val('about-emoji'),
+        paragraph1: val('about-paragraph1'),
+        paragraph2: val('about-paragraph2'),
+        values: vals.map(function(v) { return { title: v.a, text: v.b }; })
+      };
+    }
+    if (section === 'testimonials') {
+      return {
+        sectionLabel: val('test-sectionLabel'),
+        title: val('test-title'),
+        items: editorData.testimonials.items || []
+      };
+    }
+    if (section === 'contact') {
+      return {
+        sectionLabel: val('cont-sectionLabel'),
+        title: val('cont-title'),
+        subtitle: val('cont-subtitle'),
+        address: val('cont-address'),
+        addressCity: val('cont-addressCity'),
+        phone: val('cont-phone'),
+        phoneNote: val('cont-phoneNote'),
+        email: val('cont-email'),
+        emailNote: val('cont-emailNote'),
+        hours: val('cont-hours'),
+        hoursNote: val('cont-hoursNote'),
+        ctaTitle: val('cont-ctaTitle'),
+        ctaText: val('cont-ctaText'),
+        ctaButtonText: val('cont-ctaButtonText')
+      };
+    }
+    return {};
+  }
+
+  // ── Edit/Delete handlers ──
+  function handleEditClick(type, id) {
+    if (type === 'service') {
+      var svc = editorData.services.find(function(s) { return s._id === id; });
+      if (svc) openServiceModal(svc);
+    } else if (type === 'doctor') {
+      var doc = editorData.doctors.find(function(d) { return d._id === id; });
+      if (doc) openDoctorModal(doc);
+    } else if (type === 'testimonial') {
+      var idx = parseInt(id);
+      var items = editorData.testimonials.items || [];
+      if (items[idx]) openTestimonialModal(items[idx], idx);
+    }
+  }
+
+  function handleDeleteClick(type, id) {
+    if (!confirm('Na pewno usunąć?')) return;
+    var db = window.PawsomeDB;
+
+    if (type === 'service') {
+      db.collection('services').doc(id).delete().then(function() {
+        editorData.services = editorData.services.filter(function(s) { return s._id !== id; });
+        refreshList('services-list', editorData.services, 'service', function(s) { return s.emoji + ' ' + s.name; }, function(s) { return s.active ? 'Aktywna' : 'Nieaktywna'; });
+      });
+    } else if (type === 'doctor') {
+      db.collection('doctors').doc(id).delete().then(function() {
+        editorData.doctors = editorData.doctors.filter(function(d) { return d._id !== id; });
+        refreshList('doctors-list', editorData.doctors, 'doctor', function(d) { return d.name; }, function(d) { return d.specialty || ''; });
+      });
+    } else if (type === 'testimonial') {
+      var idx = parseInt(id);
+      editorData.testimonials.items.splice(idx, 1);
+      db.collection('siteContent').doc('testimonials').set(editorData.testimonials).then(function() {
+        refreshTestimonialsList();
+      });
+    }
+  }
+
+  function refreshList(listId, data, type, titleFn, subtitleFn) {
+    var el = document.getElementById(listId);
+    if (!el) return;
+    var html = '';
+    data.forEach(function(item) {
+      html += listItem(titleFn(item), subtitleFn(item), type, item._id);
+    });
+    el.innerHTML = html;
+  }
+
+  function refreshTestimonialsList() {
+    var el = document.getElementById('testimonials-list');
+    if (!el) return;
+    var html = '';
+    (editorData.testimonials.items || []).forEach(function(t, i) {
+      html += listItem(t.authorName, t.stars + ' gwiazdek', 'testimonial', i);
+    });
+    el.innerHTML = html;
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // ── MODALS ──
+  // ══════════════════════════════════════════════════════════
+
+  function createModalOverlay() {
+    var overlay = document.createElement('div');
+    overlay.className = 'editor-modal-overlay';
+    var modal = document.createElement('div');
+    modal.className = 'editor-modal';
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+    requestAnimationFrame(function() { overlay.classList.add('visible'); });
+
+    function close() {
+      overlay.classList.remove('visible');
+      overlay.addEventListener('transitionend', function() {
+        if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+      }, { once: true });
+    }
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) close(); });
+
+    return { overlay: overlay, modal: modal, close: close };
+  }
+
+  // ── Service Modal ──
+  function openServiceModal(svc) {
+    var isNew = !svc;
+    var s = svc || {
+      slug: '', name: '', emoji: '', duration: 30, displayOrder: editorData.services.length + 1, active: true,
+      shortDescription: '', iconColorClass: 'si-1',
+      heroGradient: '', heroTagline: '',
+      whyTitle: '', whyParagraphs: [''],
+      processTitle: '', processSteps: [{ bold: '', text: '' }],
+      benefitsTitle: '', benefits: [{ emoji: '', title: '', text: '' }],
+      ctaTitle: '', ctaText: ''
+    };
+
+    var m = createModalOverlay();
+    var html = '<button class="editor-modal-close">&times;</button>';
+    html += '<h3>' + (isNew ? 'Nowa usługa' : 'Edytuj usługę') + '</h3>';
+
+    html += '<div class="editor-field-row">' +
+      field('Slug (URL)', 'svc-slug', s.slug) +
+      field('Nazwa', 'svc-name', s.name) +
+    '</div>';
+    html += '<div class="editor-field-row">' +
+      field('Emoji', 'svc-emoji', s.emoji) +
+      '<div class="editor-field"><label for="ed-svc-duration">Czas trwania wizyty (minuty)</label><input type="number" id="ed-svc-duration" value="' + (s.duration || 30) + '" min="5" step="5" required></div>' +
+    '</div>';
+    html += '<div class="editor-field-row">' +
+      '<div class="editor-field"><label for="ed-svc-displayOrder">Kolejność</label><input type="number" id="ed-svc-displayOrder" value="' + (s.displayOrder || 1) + '" min="1"></div>' +
+      field('Klasa koloru (si-1..si-6)', 'svc-iconColorClass', s.iconColorClass) +
+    '</div>';
+    html += '<div class="editor-field-checkbox"><input type="checkbox" id="ed-svc-active"' + (s.active ? ' checked' : '') + '><label for="ed-svc-active">Aktywna</label></div>';
+
+    html += fieldTA('Krótki opis (karta na stronie)', 'svc-shortDescription', s.shortDescription);
+    html += field('Gradient hero', 'svc-heroGradient', s.heroGradient);
+    html += fieldTA('Tagline hero', 'svc-heroTagline', s.heroTagline);
+
+    // Why section
+    html += '<fieldset class="editor-fieldset"><legend>Sekcja "Dlaczego"</legend>';
+    html += field('Tytuł', 'svc-whyTitle', s.whyTitle);
+    html += '<div id="svc-why-paras">';
+    (s.whyParagraphs || []).forEach(function(p, i) {
+      html += '<div class="editor-field" style="display:flex;gap:.5rem;align-items:start"><textarea style="flex:1" data-svc-why-para>' + esc(p) + '</textarea><button class="editor-remove-item-btn" onclick="this.parentElement.remove()">×</button></div>';
+    });
+    html += '</div>';
+    html += '<button class="editor-add-btn" id="svc-add-why-para">+ Dodaj akapit</button>';
+    html += '</fieldset>';
+
+    // Process steps
+    html += '<fieldset class="editor-fieldset"><legend>Przebieg</legend>';
+    html += field('Tytuł sekcji', 'svc-processTitle', s.processTitle);
+    html += '<div id="svc-process-steps">';
+    (s.processSteps || []).forEach(function(step) {
+      html += '<div class="editor-dynamic-item" style="grid-template-columns:1fr 2fr auto">' +
+        '<input type="text" value="' + esc(step.bold) + '" placeholder="Nagłówek" data-field="a">' +
+        '<input type="text" value="' + esc(step.text) + '" placeholder="Opis" data-field="b">' +
+        '<button class="editor-remove-item-btn" onclick="this.parentElement.remove()">×</button></div>';
+    });
+    html += '</div>';
+    html += '<button class="editor-add-btn" id="svc-add-step">+ Dodaj krok</button>';
+    html += '</fieldset>';
+
+    // Benefits
+    html += '<fieldset class="editor-fieldset"><legend>Korzyści</legend>';
+    html += field('Tytuł sekcji', 'svc-benefitsTitle', s.benefitsTitle);
+    html += '<div id="svc-benefits">';
+    (s.benefits || []).forEach(function(b) {
+      html += '<div class="editor-dynamic-item" style="grid-template-columns:auto 1fr 2fr auto">' +
+        '<input type="text" value="' + esc(b.emoji) + '" placeholder="Emoji" style="width:50px" data-field="emoji">' +
+        '<input type="text" value="' + esc(b.title) + '" placeholder="Tytuł" data-field="a">' +
+        '<input type="text" value="' + esc(b.text) + '" placeholder="Opis" data-field="b">' +
+        '<button class="editor-remove-item-btn" onclick="this.parentElement.remove()">×</button></div>';
+    });
+    html += '</div>';
+    html += '<button class="editor-add-btn" id="svc-add-benefit">+ Dodaj korzyść</button>';
+    html += '</fieldset>';
+
+    // CTA
+    html += '<fieldset class="editor-fieldset"><legend>CTA</legend>';
+    html += field('Tytuł CTA', 'svc-ctaTitle', s.ctaTitle);
+    html += fieldTA('Tekst CTA', 'svc-ctaText', s.ctaText);
+    html += '</fieldset>';
+
+    html += '<div class="editor-modal-actions">' +
+      '<button class="editor-save-btn" id="svc-modal-save">' + (isNew ? 'Dodaj usługę' : 'Zapisz zmiany') + '</button></div>';
+
+    m.modal.innerHTML = html;
+    m.modal.querySelector('.editor-modal-close').addEventListener('click', m.close);
+
+    // Wire add para/step/benefit buttons
+    m.modal.querySelector('#svc-add-why-para').addEventListener('click', function() {
+      var list = m.modal.querySelector('#svc-why-paras');
+      var div = document.createElement('div');
+      div.className = 'editor-field';
+      div.style.cssText = 'display:flex;gap:.5rem;align-items:start';
+      div.innerHTML = '<textarea style="flex:1" data-svc-why-para></textarea><button class="editor-remove-item-btn" onclick="this.parentElement.remove()">×</button>';
+      list.appendChild(div);
+    });
+    m.modal.querySelector('#svc-add-step').addEventListener('click', function() {
+      var list = m.modal.querySelector('#svc-process-steps');
+      var div = document.createElement('div');
+      div.className = 'editor-dynamic-item';
+      div.style.gridTemplateColumns = '1fr 2fr auto';
+      div.innerHTML = '<input type="text" placeholder="Nagłówek" data-field="a"><input type="text" placeholder="Opis" data-field="b"><button class="editor-remove-item-btn" onclick="this.parentElement.remove()">×</button>';
+      list.appendChild(div);
+    });
+    m.modal.querySelector('#svc-add-benefit').addEventListener('click', function() {
+      var list = m.modal.querySelector('#svc-benefits');
+      var div = document.createElement('div');
+      div.className = 'editor-dynamic-item';
+      div.style.gridTemplateColumns = 'auto 1fr 2fr auto';
+      div.innerHTML = '<input type="text" placeholder="Emoji" style="width:50px" data-field="emoji"><input type="text" placeholder="Tytuł" data-field="a"><input type="text" placeholder="Opis" data-field="b"><button class="editor-remove-item-btn" onclick="this.parentElement.remove()">×</button>';
+      list.appendChild(div);
+    });
+
+    // Save
+    m.modal.querySelector('#svc-modal-save').addEventListener('click', function() {
+      var db = window.PawsomeDB;
+      var slug = val('svc-slug').trim();
+      if (!slug) { alert('Slug jest wymagany'); return; }
+      var dur = parseInt(document.getElementById('ed-svc-duration').value) || 30;
+      if (dur < 5) { alert('Czas trwania musi wynosić co najmniej 5 minut'); return; }
+
+      var whyParas = [];
+      m.modal.querySelectorAll('[data-svc-why-para]').forEach(function(ta) {
+        if (ta.value.trim()) whyParas.push(ta.value.trim());
+      });
+      var steps = [];
+      m.modal.querySelectorAll('#svc-process-steps .editor-dynamic-item').forEach(function(row) {
+        var a = row.querySelector('[data-field="a"]').value.trim();
+        var b = row.querySelector('[data-field="b"]').value.trim();
+        if (a || b) steps.push({ bold: a, text: b });
+      });
+      var benefits = [];
+      m.modal.querySelectorAll('#svc-benefits .editor-dynamic-item').forEach(function(row) {
+        var emoji = row.querySelector('[data-field="emoji"]').value.trim();
+        var a = row.querySelector('[data-field="a"]').value.trim();
+        var b = row.querySelector('[data-field="b"]').value.trim();
+        if (a || b) benefits.push({ emoji: emoji, title: a, text: b });
+      });
+
+      var data = {
+        slug: slug,
+        name: val('svc-name'),
+        emoji: val('svc-emoji'),
+        duration: dur,
+        displayOrder: parseInt(document.getElementById('ed-svc-displayOrder').value) || 1,
+        active: document.getElementById('ed-svc-active').checked,
+        shortDescription: val('svc-shortDescription'),
+        iconColorClass: val('svc-iconColorClass'),
+        heroGradient: val('svc-heroGradient'),
+        heroTagline: val('svc-heroTagline'),
+        whyTitle: val('svc-whyTitle'),
+        whyParagraphs: whyParas,
+        processTitle: val('svc-processTitle'),
+        processSteps: steps,
+        benefitsTitle: val('svc-benefitsTitle'),
+        benefits: benefits,
+        ctaTitle: val('svc-ctaTitle'),
+        ctaText: val('svc-ctaText')
+      };
+
+      this.disabled = true;
+      var self = this;
+      db.collection('services').doc(slug).set(data).then(function() {
+        data._id = slug;
+        if (isNew) {
+          editorData.services.push(data);
+        } else {
+          var idx = editorData.services.findIndex(function(x) { return x._id === s._id; });
+          if (idx !== -1) editorData.services[idx] = data;
+          // If slug changed, delete old doc
+          if (s._id && s._id !== slug) {
+            db.collection('services').doc(s._id).delete();
+          }
+        }
+        editorData.services.sort(function(a, b) { return (a.displayOrder || 0) - (b.displayOrder || 0); });
+        refreshList('services-list', editorData.services, 'service', function(x) { return x.emoji + ' ' + x.name; }, function(x) { return x.active ? 'Aktywna' : 'Nieaktywna'; });
+        m.close();
+      }).catch(function(e) {
+        alert('Błąd: ' + e.message);
+        self.disabled = false;
+      });
+    });
+  }
+
+  // ── Doctor Modal ──
+  function openDoctorModal(doc) {
+    var isNew = !doc;
+    var d = doc || {
+      _id: null, name: '', specialty: '', bio: '', photoURL: '',
+      displayOrder: editorData.doctors.length + 1, showOnWebsite: true
+    };
+
+    var m = createModalOverlay();
+    var html = '<button class="editor-modal-close">&times;</button>';
+    html += '<h3>' + (isNew ? 'Dodaj lekarza do strony' : 'Edytuj lekarza') + '</h3>';
+
+    // Photo preview
+    if (d.photoURL) {
+      html += '<img src="' + esc(d.photoURL) + '" class="editor-photo-preview" id="doctor-photo-preview">';
+    } else {
+      html += '<div class="editor-photo-placeholder" id="doctor-photo-preview">👩‍⚕️</div>';
+    }
+    html += '<div class="editor-field"><label>Zdjęcie</label><input type="file" id="doctor-photo-input" accept="image/*"></div>';
+
+    html += field('Imię i tytuł', 'doc-name', d.name);
+    html += field('Specjalizacja', 'doc-specialty', d.specialty);
+    html += fieldTA('Bio', 'doc-bio', d.bio);
+    html += '<div class="editor-field-row">' +
+      '<div class="editor-field"><label for="ed-doc-displayOrder">Kolejność</label><input type="number" id="ed-doc-displayOrder" value="' + (d.displayOrder || 1) + '" min="1"></div>' +
+      '<div></div>' +
+    '</div>';
+    html += '<div class="editor-field-checkbox"><input type="checkbox" id="ed-doc-showOnWebsite"' + (d.showOnWebsite !== false ? ' checked' : '') + '><label for="ed-doc-showOnWebsite">Pokaż na stronie</label></div>';
+
+    html += '<div class="editor-modal-actions">' +
+      '<button class="editor-save-btn" id="doc-modal-save">' + (isNew ? 'Dodaj lekarza' : 'Zapisz zmiany') + '</button></div>';
+
+    m.modal.innerHTML = html;
+    m.modal.querySelector('.editor-modal-close').addEventListener('click', m.close);
+
+    // Photo preview on file select
+    var photoInput = m.modal.querySelector('#doctor-photo-input');
+    photoInput.addEventListener('change', function() {
+      if (this.files && this.files[0]) {
+        var reader = new FileReader();
+        reader.onload = function(e) {
+          var preview = m.modal.querySelector('#doctor-photo-preview');
+          if (preview.tagName === 'IMG') {
+            preview.src = e.target.result;
+          } else {
+            var img = document.createElement('img');
+            img.src = e.target.result;
+            img.className = 'editor-photo-preview';
+            img.id = 'doctor-photo-preview';
+            preview.parentNode.replaceChild(img, preview);
+          }
+        };
+        reader.readAsDataURL(this.files[0]);
+      }
+    });
+
+    // Save
+    m.modal.querySelector('#doc-modal-save').addEventListener('click', function() {
+      var db = window.PawsomeDB;
+      var storage = window.PawsomeStorage;
+      var name = val('doc-name').trim();
+      if (!name) { alert('Imię jest wymagane'); return; }
+
+      this.disabled = true;
+      var self = this;
+      var docId = d._id || db.collection('doctors').doc().id;
+
+      var photoFile = photoInput.files && photoInput.files[0];
+
+      function saveDoc(photoURL) {
+        var data = {
+          name: val('doc-name'),
+          specialty: val('doc-specialty'),
+          bio: val('doc-bio'),
+          photoURL: photoURL || d.photoURL || '',
+          displayOrder: parseInt(document.getElementById('ed-doc-displayOrder').value) || 1,
+          showOnWebsite: document.getElementById('ed-doc-showOnWebsite').checked
+        };
+
+        db.collection('doctors').doc(docId).set(data, { merge: true }).then(function() {
+          data._id = docId;
+          if (isNew) {
+            editorData.doctors.push(data);
+          } else {
+            var idx = editorData.doctors.findIndex(function(x) { return x._id === d._id; });
+            if (idx !== -1) editorData.doctors[idx] = data;
+          }
+          editorData.doctors.sort(function(a, b) { return (a.displayOrder || 0) - (b.displayOrder || 0); });
+          refreshList('doctors-list', editorData.doctors, 'doctor', function(x) { return x.name; }, function(x) { return x.specialty || ''; });
+          m.close();
+        }).catch(function(e) {
+          alert('Błąd: ' + e.message);
+          self.disabled = false;
+        });
+      }
+
+      if (photoFile && storage) {
+        var ref = storage.ref('doctors/' + docId + '.jpg');
+        ref.put(photoFile).then(function(snapshot) {
+          return snapshot.ref.getDownloadURL();
+        }).then(function(url) {
+          saveDoc(url);
+        }).catch(function(e) {
+          alert('Błąd uploadu zdjęcia: ' + e.message);
+          self.disabled = false;
+        });
+      } else {
+        saveDoc(null);
+      }
+    });
+  }
+
+  // ── Testimonial Modal ──
+  function openTestimonialModal(t, editIdx) {
+    var isNew = (editIdx === undefined || editIdx === null);
+    var d = t || { stars: 5, quote: '', authorName: '', authorPet: '', authorEmoji: '🐶' };
+
+    var m = createModalOverlay();
+    var html = '<button class="editor-modal-close">&times;</button>';
+    html += '<h3>' + (isNew ? 'Nowa opinia' : 'Edytuj opinię') + '</h3>';
+
+    html += '<div class="editor-field"><label for="ed-test-stars">Gwiazdki</label><select id="ed-test-stars">';
+    for (var i = 1; i <= 5; i++) {
+      html += '<option value="' + i + '"' + (d.stars === i ? ' selected' : '') + '>' + i + '</option>';
+    }
+    html += '</select></div>';
+    html += fieldTA('Treść opinii', 'test-quote', d.quote);
+    html += '<div class="editor-field-row">' +
+      field('Autor', 'test-authorName', d.authorName) +
+      field('Pupil', 'test-authorPet', d.authorPet) +
+    '</div>';
+    html += field('Emoji autora', 'test-authorEmoji', d.authorEmoji);
+
+    html += '<div class="editor-modal-actions">' +
+      '<button class="editor-save-btn" id="test-modal-save">' + (isNew ? 'Dodaj opinię' : 'Zapisz zmiany') + '</button></div>';
+
+    m.modal.innerHTML = html;
+    m.modal.querySelector('.editor-modal-close').addEventListener('click', m.close);
+
+    m.modal.querySelector('#test-modal-save').addEventListener('click', function() {
+      var db = window.PawsomeDB;
+      var data = {
+        stars: parseInt(document.getElementById('ed-test-stars').value) || 5,
+        quote: val('test-quote'),
+        authorName: val('test-authorName'),
+        authorPet: val('test-authorPet'),
+        authorEmoji: val('test-authorEmoji')
+      };
+
+      if (!editorData.testimonials.items) editorData.testimonials.items = [];
+      if (isNew) {
+        editorData.testimonials.items.push(data);
+      } else {
+        editorData.testimonials.items[editIdx] = data;
+      }
+
+      this.disabled = true;
+      var self = this;
+      db.collection('siteContent').doc('testimonials').set(editorData.testimonials)
+        .then(function() {
+          refreshTestimonialsList();
+          m.close();
+        }).catch(function(e) {
+          alert('Błąd: ' + e.message);
+          self.disabled = false;
+        });
+    });
   }
 
   // ── INIT ──

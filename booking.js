@@ -120,6 +120,46 @@
     return num.length === 9 && MOBILE_PREFIXES.indexOf(num.slice(0, 2)) !== -1;
   }
 
+  // ── LOAD SERVICES FROM FIRESTORE ──
+  function loadServicesFromFirestore(callback) {
+    var db = window.PawsomeDB;
+    if (!db) { callback(); return; }
+    db.collection('services').where('active', '==', true).orderBy('displayOrder').get()
+      .then(function(snapshot) {
+        if (snapshot.empty) { callback(); return; }
+        var newServices = {};
+        var newDurations = {};
+        snapshot.forEach(function(doc) {
+          var d = doc.data();
+          newServices[d.slug] = d.name;
+          newDurations[d.slug] = d.duration || 30;
+        });
+        SERVICES = newServices;
+        SERVICE_DURATIONS = newDurations;
+        callback();
+      })
+      .catch(function() { callback(); });
+  }
+
+  function renderServicePicker() {
+    if (!servicePickerSection) return;
+    var grid = servicePickerSection.querySelector('.doctor-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    var keys = Object.keys(SERVICES);
+    keys.forEach(function(key) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'doctor-card';
+      btn.dataset.service = key;
+      btn.innerHTML =
+        '<div class="doctor-card-name">' + escapeHtml(SERVICES[key]) + '</div>' +
+        '<div class="doctor-card-specialty">' + (SERVICE_DURATIONS[key] || 30) + ' min</div>';
+      btn.addEventListener('click', function() { selectService(key, btn); });
+      grid.appendChild(btn);
+    });
+  }
+
   // ── INIT ──
   function init() {
     var now = new Date();
@@ -142,12 +182,8 @@
       });
     }
 
-    // Wire service picker cards
-    if (servicePickerSection) {
-      servicePickerSection.querySelectorAll('.doctor-card').forEach(function(card) {
-        card.addEventListener('click', function() { selectService(this.dataset.service, this); });
-      });
-    }
+    // Render service picker dynamically
+    renderServicePicker();
 
     if (!navigator.onLine) {
       offlineNotice.classList.add('visible');
@@ -820,6 +856,8 @@
 
   // Start only on the booking page
   if (calendarDays) {
-    init();
+    loadServicesFromFirestore(function() {
+      init();
+    });
   }
 })();

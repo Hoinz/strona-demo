@@ -55,9 +55,10 @@
 
   <!-- Dashboard View -->
   <div id="admin-dashboard" class="admin-dashboard">
+
     <div class="admin-header">
       <div>
-        <h1>Rezerwacje</h1>
+        <h1 id="admin-page-title">Rezerwacje</h1>
         <span class="doctor-label" id="doctor-label"></span>
       </div>
       <div class="admin-header-actions">
@@ -68,28 +69,48 @@
       </div>
     </div>
 
-    <div class="admin-date-picker">
-      <label for="admin-date">Data:</label>
-      <input type="date" id="admin-date">
+    <!-- Health warning banner -->
+    <div id="content-health-banner" class="content-health-banner" style="display:none"></div>
+
+    <!-- Main tab bar -->
+    <div class="admin-main-tabs">
+      <button class="admin-main-tab active" data-main-tab="bookings" id="main-tab-bookings">Rezerwacje</button>
+      <button class="admin-main-tab" data-main-tab="editor" id="main-tab-editor">Edytuj stronę</button>
     </div>
 
-    <div class="admin-view-toggle">
-      <button class="view-toggle-btn active" id="btn-view-mine" data-view="mine">Moje wizyty</button>
-      <button class="view-toggle-btn" id="btn-view-all" data-view="all">Wszystkie wizyty</button>
+    <!-- Bookings View -->
+    <div id="view-bookings">
+      <div class="admin-date-picker">
+        <label for="admin-date">Data:</label>
+        <input type="date" id="admin-date">
+      </div>
+
+      <div class="admin-view-toggle">
+        <button class="view-toggle-btn active" id="btn-view-mine" data-view="mine">Moje wizyty</button>
+        <button class="view-toggle-btn" id="btn-view-all" data-view="all">Wszystkie wizyty</button>
+      </div>
+
+      <div class="admin-tabs">
+        <button class="admin-tab active" data-filter="pending" id="tab-pending"><span class="tab-label">Wszystkie moje oczekujące</span> <span class="count">0</span></button>
+        <button class="admin-tab" data-filter="accepted">Potwierdzone <span class="count">0</span></button>
+        <button class="admin-tab" data-filter="rejected">Odrzucone <span class="count">0</span></button>
+        <button class="admin-tab" data-filter="all">Wszystkie <span class="count">0</span></button>
+      </div>
+
+      <div class="bookings-list" id="bookings-list">
+        <div class="no-bookings">Ładowanie...</div>
+      </div>
+
+      <div class="timeline" id="timeline"></div>
     </div>
 
-    <div class="admin-tabs">
-      <button class="admin-tab active" data-filter="pending" id="tab-pending"><span class="tab-label">Wszystkie moje oczekujące</span> <span class="count">0</span></button>
-      <button class="admin-tab" data-filter="accepted">Potwierdzone <span class="count">0</span></button>
-      <button class="admin-tab" data-filter="rejected">Odrzucone <span class="count">0</span></button>
-      <button class="admin-tab" data-filter="all">Wszystkie <span class="count">0</span></button>
+    <!-- Editor View -->
+    <div id="view-editor" style="display:none">
+      <div id="editor-container">
+        <div style="text-align:center;padding:2rem;color:#888">Ładowanie edytora...</div>
+      </div>
     </div>
 
-    <div class="bookings-list" id="bookings-list">
-      <div class="no-bookings">Ładowanie...</div>
-    </div>
-
-    <div class="timeline" id="timeline"></div>
   </div>
 
 </main>
@@ -115,6 +136,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
 <script src="firebase-config.js"></script>
 <script src="admin.js"></script>
 </body>
