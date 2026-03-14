@@ -19,7 +19,7 @@
     db.collection('siteContent').doc('about').get(),
     db.collection('siteContent').doc('testimonials').get(),
     db.collection('siteContent').doc('contact').get(),
-    db.collection('services').where('active', '==', true).orderBy('displayOrder').get(),
+    db.collection('services').orderBy('displayOrder').get(),
     db.collection('doctors').where('showOnWebsite', '==', true).orderBy('displayOrder').get()
   ]).then(function(results) {
     var hero = results[0].exists ? results[0].data() : null;

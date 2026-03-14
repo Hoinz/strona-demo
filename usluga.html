@@ -41,6 +41,7 @@
 .service-404 h1{font-size:2rem;margin-bottom:1rem}
 .service-404 p{color:#666;margin-bottom:2rem}
 .service-404 a{color:var(--terra);text-decoration:none;font-weight:500}
+.service-unavailable-banner{background:#c4856a;color:#fff;text-align:center;padding:1rem 2rem;font-size:1.15rem;font-weight:600;letter-spacing:.02em;position:relative;z-index:2}
 @media(max-width:768px){.service-hero{padding:8rem 1.5rem 3rem}.service-section{padding:3rem 1.5rem}.benefits-grid{grid-template-columns:1fr}.service-cta{padding:3rem 1.5rem}}
 </style>
 </head>
@@ -131,9 +132,9 @@
   }
 
   db.collection('services').doc(slug).get().then(function(doc) {
-    if (!doc.exists || doc.data().active === false) {
+    if (!doc.exists) {
       show404();
-      reportError('Service not found or inactive: ' + slug);
+      reportError('Service not found: ' + slug);
       return;
     }
     var svc = doc.data();
@@ -158,7 +159,13 @@
     var meta = document.querySelector('meta[name="description"]');
     if (meta) meta.setAttribute('content', svc.heroTagline || svc.shortDescription || '');
 
+    var isInactive = svc.active === false;
     var html = '';
+
+    // Unavailability banner for inactive services
+    if (isInactive) {
+      html += '<div class="service-unavailable-banner">Ta us\u0142uga jest czasowo nie dost\u0119pna</div>';
+    }
 
     // Hero
     html += '<section class="service-hero">';
@@ -211,15 +218,17 @@
     // Append main content
     mainEl.innerHTML = html;
 
-    // CTA section (outside main, after it)
-    var ctaSection = document.createElement('section');
-    ctaSection.className = 'service-cta';
-    ctaSection.innerHTML =
-      '<h2>' + escapeHtml(svc.ctaTitle) + '</h2>' +
-      '<p>' + escapeHtml(svc.ctaText) + '</p>' +
-      '<a href="umow-wizyte.html?service=' + encodeURIComponent(svc.slug) + '" class="btn-primary">Umów wizytę →</a>' +
-      '<div class="phone">lub zadzwoń: <a href="tel:+48225557799">+48 22 555 77 99</a></div>';
-    mainEl.parentNode.insertBefore(ctaSection, mainEl.nextSibling);
+    // CTA section (outside main, after it) — only for active services
+    if (!isInactive) {
+      var ctaSection = document.createElement('section');
+      ctaSection.className = 'service-cta';
+      ctaSection.innerHTML =
+        '<h2>' + escapeHtml(svc.ctaTitle) + '</h2>' +
+        '<p>' + escapeHtml(svc.ctaText) + '</p>' +
+        '<a href="umow-wizyte.html?service=' + encodeURIComponent(svc.slug) + '" class="btn-primary">Umów wizytę →</a>' +
+        '<div class="phone">lub zadzwoń: <a href="tel:+48225557799">+48 22 555 77 99</a></div>';
+      mainEl.parentNode.insertBefore(ctaSection, mainEl.nextSibling);
+    }
   }
 
   function reportError(msg) {
