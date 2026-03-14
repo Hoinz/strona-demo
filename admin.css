@@ -321,6 +321,7 @@
 }
 .sched-scroll {
   overflow-x: auto;
+  overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
 }
 .schedule-title {
