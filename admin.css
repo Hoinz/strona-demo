@@ -638,6 +638,7 @@
 .appt-modal-meta { font-size: 0.84rem; color: #888; margin-bottom: 1.2rem; }
 .appt-modal-actions { display: flex; flex-direction: column; gap: 0.55rem; }
 .appt-actions-edit { display: flex; gap: 0.7rem; }
+.appt-btn-amend,
 .appt-btn-amend-time,
 .appt-btn-amend-entry {
   flex: 1;
@@ -653,6 +654,7 @@
   transition: background 0.25s;
   min-width: 0;
 }
+.appt-btn-amend:hover,
 .appt-btn-amend-time:hover,
 .appt-btn-amend-entry:hover { background: var(--charcoal); }
 .appt-btn-delete {
