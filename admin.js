@@ -398,6 +398,12 @@
         (acceptedBookings.length === 0 && viewMode !== 'all' ? '<p class="sch-empty">Brak potwierdzonych wizyt</p>' : '') +
         (showHeaders ? '<div class="sched-scroll">' + innerHtml + '</div>' : innerHtml) +
       '</div>';
+    if (showHeaders) {
+      requestAnimationFrame(function() {
+        var s = timelineEl.querySelector('.sched-scroll');
+        if (s) s.style.height = s.scrollHeight + 'px';
+      });
+    }
     // Attach click handlers to appointment blocks
     timelineEl.querySelectorAll('.sch-appt-block').forEach(function(el) {
       el.addEventListener('click', function() {
