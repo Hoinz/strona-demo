@@ -961,7 +961,8 @@
   font-size: 0.8rem;
   font-family: 'DM Sans', sans-serif;
   background: var(--cream);
-  width: 88px;
+  width: 105px;
+  min-width: 0;
 }
 .sched-pause-add-form input[type="time"]:focus { outline: none; border-color: var(--terra); }
 .sched-pause-add-form span { font-size: 0.8rem; color: #bbb; }
@@ -1064,7 +1065,8 @@
   font-size: 0.85rem;
   font-family: 'DM Sans', sans-serif;
   background: var(--cream);
-  width: 100px;
+  width: 115px;
+  min-width: 0;
 }
 .sched-time-inputs input[type="time"]:disabled {
   opacity: 0.4;
