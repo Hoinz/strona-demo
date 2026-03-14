@@ -1315,7 +1315,7 @@
       });
 
       saveSchedule({
-        defaultWeek: wh,
+        defaultWeek: null,
         validFrom: null,
         validUntil: null,
         busyBlocks: busyBlocks.slice(),
