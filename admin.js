@@ -1497,12 +1497,13 @@
   }
 
   // ── WEEK SCHEDULE MODAL ──
-  function getWeekDates() {
+  function getWeekDates(weekOffset) {
+    weekOffset = weekOffset || 0;
     var today = new Date();
     var dow = today.getDay();
     var diffToMon = (dow === 0) ? -6 : 1 - dow;
     var monday = new Date(today);
-    monday.setDate(today.getDate() + diffToMon);
+    monday.setDate(today.getDate() + diffToMon + weekOffset * 7);
     var dates = [];
     for (var i = 0; i < 7; i++) {
       var d = new Date(monday);
@@ -1548,9 +1549,7 @@
       return n + ' wizyt';
     }
 
-    var label = buildWeekLabel(weekDates[0], weekDates[6]);
-    var html = '<div class="week-sched-label">' + escapeHtml(label) + '</div>';
-    html += '<div class="week-sched-grid">';
+    var html = '<div class="week-sched-grid">';
 
     weekDates.forEach(function(dateStr, idx) {
       var jsdow = dowForDate[idx];
@@ -1579,9 +1578,11 @@
 
       html += '<div class="' + cardCls + '">';
       html += '<div class="week-day-header">';
+      html += '<div class="week-day-name-row">';
       html += '<span class="week-day-name">' + escapeHtml(dayNames[idx]) + '</span>';
-      html += '<span class="week-day-date">' + escapeHtml(dateLabel) + '</span>';
       if (isToday) html += '<span class="week-day-today-badge">Dziś</span>';
+      html += '</div>';
+      html += '<span class="week-day-date">' + escapeHtml(dateLabel) + '</span>';
       html += '</div>';
 
       // Schedule info — only in single-doctor mode
@@ -1604,9 +1605,13 @@
         html += '<div class="week-appt-list">';
         dayAppts.forEach(function(a) {
           var endTime = minsToTime(timeToMins(a.time) + (a.duration || 20));
-          var cls = 'week-appt-item ' + (a.status === 'accepted' ? 'week-appt-accepted' : 'week-appt-pending');
-          html += '<div class="' + cls + '">';
-          html += '<div class="week-appt-time">' + escapeHtml(a.time) + '\u2013' + escapeHtml(endTime) + '</div>';
+          var statusCls = a.status === 'accepted' ? 'week-appt-status-accepted' : 'week-appt-status-pending';
+          var statusLabel = a.status === 'accepted' ? 'Potw.' : 'Oczek.';
+          html += '<div class="week-appt-item">';
+          html += '<div class="week-appt-top">';
+          html += '<span class="week-appt-time">' + escapeHtml(a.time) + '\u2013' + escapeHtml(endTime) + '</span>';
+          html += '<span class="week-appt-status ' + statusCls + '">' + statusLabel + '</span>';
+          html += '</div>';
           if (!filterDoctorId && doctorNameMap) {
             var dname = doctorNameMap[a.doctorId] || '';
             if (dname) html += '<div class="week-appt-doctor">' + escapeHtml(dname) + '</div>';
@@ -1616,6 +1621,8 @@
           html += '</div>';
         });
         html += '</div>';
+      } else if (!filterDoctorId || !isOff) {
+        html += '<div class="week-day-empty"><span class="week-day-empty-icon">\uD83D\uDCC5</span>Brak wizyt</div>';
       }
 
       html += '</div>';
@@ -1634,10 +1641,11 @@
     var existing = document.getElementById('week-sched-modal-overlay');
     if (existing) existing.parentNode.removeChild(existing);
 
-    var weekDates = getWeekDates();
+    var weekOffset = 0;
+    var weekDates = getWeekDates(weekOffset);
     var todayStr = formatDateInput(new Date());
     var myId = currentUser.uid;
-    var selectedDoctorId = 'all'; // default: all doctors
+    var selectedDoctorId = 'all';
 
     var doctorList = allDoctors.length > 0 ? allDoctors : [{ id: myId, name: doctorName || 'Mój grafik' }];
     var doctorOptions = '<option value="all" selected>Wszyscy lekarze</option>' +
@@ -1645,7 +1653,6 @@
         return '<option value="' + escapeAttr(d.id) + '">' + escapeHtml(d.name) + '</option>';
       }).join('');
 
-    // Build name lookup map
     var doctorNameMap = {};
     doctorList.forEach(function(d) { doctorNameMap[d.id] = d.name; });
 
@@ -1655,13 +1662,21 @@
     overlay.innerHTML =
       '<div class="appt-modal week-sched-modal">' +
         '<div class="appt-modal-header">' +
-          '<h3 class="appt-modal-title">Harmonogram na ten tydzień</h3>' +
+          '<h3 class="appt-modal-title">Harmonogram tygodniowy</h3>' +
           '<button class="appt-modal-close">&times;</button>' +
         '</div>' +
         '<div class="appt-modal-body">' +
-          '<div class="view-sched-selector">' +
-            '<label class="view-sched-label">Lekarz:</label>' +
-            '<select id="week-sched-doctor" class="view-sched-select">' + doctorOptions + '</select>' +
+          '<div class="week-toolbar">' +
+            '<div class="view-sched-selector">' +
+              '<label class="view-sched-label">Lekarz:</label>' +
+              '<select id="week-sched-doctor" class="view-sched-select">' + doctorOptions + '</select>' +
+            '</div>' +
+            '<div class="week-nav">' +
+              '<button class="vs-nav-btn" id="week-prev" title="Poprzedni tydzień">&#8249;</button>' +
+              '<span class="week-nav-label" id="week-nav-label"></span>' +
+              '<button class="vs-nav-btn" id="week-next" title="Następny tydzień">&#8250;</button>' +
+              '<button class="week-nav-today" id="week-today">Dziś</button>' +
+            '</div>' +
           '</div>' +
           '<div id="week-sched-content"><div class="week-sched-loading">Ładowanie wizyt\u2026</div></div>' +
         '</div>' +
@@ -1673,6 +1688,11 @@
     var modal = overlay.querySelector('.week-sched-modal');
     overlay.addEventListener('click', function(e) { if (e.target === overlay) closeWeekScheduleModal(); });
     modal.querySelector('.appt-modal-close').addEventListener('click', closeWeekScheduleModal);
+
+    function updateNavLabel() {
+      var labelEl = overlay.querySelector('#week-nav-label');
+      if (labelEl) labelEl.textContent = buildWeekLabel(weekDates[0], weekDates[6]);
+    }
 
     function fetchAndRender(doctorId) {
       var contentEl = overlay.querySelector('#week-sched-content');
@@ -1705,11 +1725,31 @@
         });
     }
 
+    function refreshWeek() {
+      weekDates = getWeekDates(weekOffset);
+      updateNavLabel();
+      fetchAndRender(selectedDoctorId);
+    }
+
     overlay.querySelector('#week-sched-doctor').addEventListener('change', function() {
       selectedDoctorId = this.value;
       fetchAndRender(selectedDoctorId);
     });
 
+    overlay.querySelector('#week-prev').addEventListener('click', function() {
+      weekOffset--;
+      refreshWeek();
+    });
+    overlay.querySelector('#week-next').addEventListener('click', function() {
+      weekOffset++;
+      refreshWeek();
+    });
+    overlay.querySelector('#week-today').addEventListener('click', function() {
+      weekOffset = 0;
+      refreshWeek();
+    });
+
+    updateNavLabel();
     fetchAndRender(selectedDoctorId);
   }
 

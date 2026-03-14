@@ -1310,220 +1310,332 @@
 }
 
 /* ── WEEK SCHEDULE MODAL ── */
-.week-sched-modal { max-width: 900px !important; }
+.week-sched-modal { max-width: 1100px !important; width: 95vw !important; }
 
 .week-sched-loading {
   text-align: center;
-  padding: 2rem;
-  color: var(--muted-text, #888);
+  padding: 2.5rem 1rem;
+  color: #999;
   font-size: 0.9rem;
 }
 
-.week-sched-label {
-  text-align: center;
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--deep-olive);
+/* ── WEEK TOOLBAR ── */
+.week-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
   margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+.week-toolbar .view-sched-selector {
+  margin-bottom: 0;
+}
+.week-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.week-nav-label {
+  font-family: 'Playfair Display', serif;
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--deep-olive);
+  min-width: 180px;
+  text-align: center;
+  white-space: nowrap;
+}
+.week-nav-today {
+  background: none;
+  border: 1.5px solid var(--terra);
+  color: var(--terra);
+  border-radius: 6px;
+  padding: 0.25rem 0.7rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.week-nav-today:hover {
+  background: var(--terra);
+  color: #fff;
 }
 
+/* ── WEEK GRID ── */
 .week-sched-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 0.6rem;
+  gap: 0.5rem;
   margin-bottom: 1rem;
 }
 
 .week-day-card {
-  background: var(--cream, #fdf8f0);
-  border: 1px solid rgba(0,0,0,0.08);
-  border-radius: 8px;
-  padding: 0.55rem 0.5rem;
+  background: var(--white, #fff);
+  border: 1px solid rgba(0,0,0,0.07);
+  border-radius: 12px;
+  padding: 0.75rem;
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.4rem;
   min-width: 0;
+  transition: box-shadow 0.2s;
 }
 
+/* ── TODAY COLUMN ── */
 .week-day-today {
-  background: rgba(var(--terra-rgb, 180, 90, 60), 0.07);
-  border: 1.5px solid var(--terra);
+  border: 2px solid var(--terra);
+  box-shadow: 0 0 0 1px rgba(196,133,106,0.15), 0 2px 8px rgba(196,133,106,0.1);
+  position: relative;
+}
+.week-day-today::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 4px;
+  border-radius: 10px 10px 0 0;
+  background: linear-gradient(90deg, var(--terra), rgba(196,133,106,0.5));
 }
 
+/* ── DAY OFF ── */
 .week-day-off {
-  opacity: 0.6;
-  background: rgba(0,0,0,0.02);
+  opacity: 0.5;
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent,
+    transparent 8px,
+    rgba(0,0,0,0.018) 8px,
+    rgba(0,0,0,0.018) 9px
+  );
 }
 
+/* ── DAY HEADER ── */
 .week-day-header {
   display: flex;
   flex-direction: column;
-  gap: 0.1rem;
-  margin-bottom: 0.2rem;
+  gap: 0.15rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+  margin-bottom: 0.15rem;
 }
-
+.week-day-name-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
 .week-day-name {
-  font-size: 0.72rem;
+  font-size: 0.78rem;
   font-weight: 700;
   color: var(--deep-olive);
   text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.week-day-date {
+  font-size: 0.75rem;
+  color: #999;
+}
+.week-day-today-badge {
+  display: inline-flex;
+  align-items: center;
+  background: var(--terra);
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 0.1rem 0.4rem;
+  border-radius: 10px;
   letter-spacing: 0.02em;
 }
 
-.week-day-date {
-  font-size: 0.68rem;
-  color: #888;
-}
-
-.week-day-today-badge {
-  display: inline-block;
-  background: var(--terra);
-  color: #fff;
-  font-size: 0.6rem;
-  font-weight: 700;
-  padding: 0.1rem 0.35rem;
-  border-radius: 4px;
-  margin-top: 0.15rem;
-  width: fit-content;
-}
-
+/* ── SCHEDULE INFO (single-doctor) ── */
 .week-day-hours {
-  font-size: 0.72rem;
+  font-size: 0.78rem;
   color: var(--deep-olive);
   font-weight: 600;
 }
-
 .week-day-pause {
-  font-size: 0.65rem;
+  font-size: 0.72rem;
   color: #999;
   font-style: italic;
 }
-
 .week-day-off-label {
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   color: #aaa;
   font-style: italic;
 }
-
 .week-day-busy {
-  font-size: 0.65rem;
+  font-size: 0.72rem;
   color: rgba(198,40,40,0.85);
   background: rgba(198,40,40,0.07);
-  border-radius: 3px;
-  padding: 0.1rem 0.25rem;
+  border-radius: 6px;
+  padding: 0.15rem 0.35rem;
 }
 
+/* ── EMPTY DAY PLACEHOLDER ── */
+.week-day-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  padding: 1rem 0.5rem;
+  color: #ccc;
+  font-size: 0.78rem;
+  text-align: center;
+}
+.week-day-empty-icon {
+  font-size: 1.2rem;
+  opacity: 0.5;
+}
+
+/* ── APPOINTMENT LIST ── */
 .week-appt-count {
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--soft-sage);
-  margin-top: 0.2rem;
+  margin-top: 0.1rem;
 }
-
 .week-appt-list {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: 0.35rem;
   margin-top: 0.1rem;
 }
-
 .week-appt-item {
-  border-radius: 4px;
-  padding: 0.25rem 0.3rem;
-  font-size: 0.65rem;
-  border-left: 3px solid transparent;
+  background: rgba(0,0,0,0.02);
+  border-radius: 8px;
+  padding: 0.4rem 0.45rem;
+  font-size: 0.75rem;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.week-appt-item:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
 }
 
-.week-appt-accepted {
-  background: rgba(var(--soft-sage-rgb, 130, 155, 105), 0.1);
-  border-left-color: var(--soft-sage);
+/* ── APPOINTMENT TOP ROW (time + status pill) ── */
+.week-appt-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.3rem;
+  margin-bottom: 0.15rem;
 }
-
-.week-appt-pending {
-  background: rgba(200, 160, 60, 0.1);
-  border-left-color: #c8a03c;
-}
-
 .week-appt-time {
   font-weight: 700;
   color: var(--deep-olive);
+  font-size: 0.78rem;
+}
+.week-appt-status {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.6rem;
+  font-weight: 700;
+  padding: 0.1rem 0.4rem;
+  border-radius: 10px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.week-appt-status-accepted {
+  background: rgba(130,155,105,0.15);
+  color: var(--soft-sage);
+}
+.week-appt-status-pending {
+  background: rgba(200,160,60,0.15);
+  color: #b8922e;
 }
 
 .week-appt-doctor {
   font-weight: 600;
   color: var(--deep-olive);
-  font-size: 0.62rem;
-  margin-top: 0.05rem;
+  font-size: 0.72rem;
+  margin-top: 0.1rem;
 }
-
 .week-appt-patient {
   color: #555;
-  margin-top: 0.05rem;
+  margin-top: 0.1rem;
+  font-size: 0.75rem;
 }
-
 .week-appt-service {
   color: #999;
-  font-size: 0.6rem;
+  font-size: 0.7rem;
   margin-top: 0.05rem;
 }
 
 /* ── WEEK LEGEND ── */
 .week-sched-legend {
   display: flex;
-  gap: 1rem;
+  gap: 1.2rem;
   justify-content: center;
   flex-wrap: wrap;
-  margin-top: 0.5rem;
+  margin-top: 0.75rem;
 }
-
 .week-leg-item {
-  font-size: 0.75rem;
+  font-size: 0.78rem;
   display: flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.4rem;
   color: #666;
 }
-
 .week-leg-item::before {
   content: '';
   display: inline-block;
-  width: 12px;
-  height: 12px;
-  border-radius: 3px;
-  border-left: 3px solid transparent;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
 }
-
 .week-leg-accepted::before {
-  background: rgba(130, 155, 105, 0.15);
-  border-left-color: var(--soft-sage);
+  background: var(--soft-sage);
 }
-
 .week-leg-pending::before {
-  background: rgba(200, 160, 60, 0.15);
-  border-left-color: #c8a03c;
+  background: #c8a03c;
 }
-
 .week-leg-busy::before {
-  background: rgba(198, 40, 40, 0.12);
-  border-color: rgba(198, 40, 40, 0.5);
-  border-left-color: rgba(198, 40, 40, 0.7);
+  background: rgba(198,40,40,0.7);
 }
 
 /* ── WEEK RESPONSIVE ── */
+@media (max-width: 1100px) {
+  .week-sched-modal { width: 95vw !important; }
+}
 @media (max-width: 900px) {
-  .week-sched-grid { overflow-x: auto; }
-}
-
-@media (max-width: 600px) {
   .week-sched-grid {
-    grid-template-columns: repeat(2, 1fr);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x mandatory;
+    grid-template-columns: repeat(7, minmax(130px, 1fr));
   }
+  .week-day-card { scroll-snap-align: start; }
+  .week-toolbar { flex-direction: column; align-items: stretch; gap: 0.5rem; }
+  .week-nav { justify-content: center; }
 }
-
-@media (max-width: 380px) {
+@media (max-width: 600px) {
+  .week-sched-modal {
+    max-width: 100vw !important;
+    width: 100vw !important;
+    border-radius: 16px 16px 0 0 !important;
+    max-height: 90vh !important;
+    margin-top: auto !important;
+  }
   .week-sched-grid {
     grid-template-columns: 1fr;
+    overflow-x: visible;
+    scroll-snap-type: none;
   }
+  .week-day-card { scroll-snap-align: none; }
+  .week-day-name { font-size: 0.85rem; }
+  .week-day-date { font-size: 0.8rem; }
+  .week-appt-item { font-size: 0.82rem; }
+  .week-appt-time { font-size: 0.85rem; }
+  .week-appt-patient { font-size: 0.82rem; }
+  .week-nav-label { min-width: unset; font-size: 0.9rem; }
+}
+@media (max-width: 380px) {
+  .week-sched-grid { grid-template-columns: 1fr; }
+  .week-nav { gap: 0.3rem; }
+  .week-nav-label { font-size: 0.82rem; min-width: unset; }
+  .week-nav-today { padding: 0.2rem 0.5rem; font-size: 0.72rem; }
 }
 
 /* ── Main Tab Bar ── */
