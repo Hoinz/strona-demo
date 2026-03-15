@@ -804,7 +804,8 @@
           .where(firebase.firestore.FieldPath.documentId(), '>=', todayStr)
           .where(firebase.firestore.FieldPath.documentId(), '<=', futureStr)
           .get(),
-        db.collection('doctors').get()
+        db.collection('doctors').get(),
+        db.collection('doctorSchedules').get()
       ]).then(function(results) {
         // Count taken slots per date|time key across all doctors
         var slotCounts = {};
@@ -820,7 +821,14 @@
         var doctorCount = results[2].size;
         if (doctorCount === 0) { callback(null); return; }
 
+        // Collect all doctor schedules to find true available hours
+        var allDoctorSchedules = [];
+        results[3].forEach(function(doc) {
+          allDoctorSchedules.push(doc.data());
+        });
+
         var currentMinutes = now.getHours() * 60 + now.getMinutes();
+        var savedScheduleData = doctorScheduleData;
 
         for (var i = 0; i <= 14; i++) {
           var checkDate = new Date(now);
@@ -830,7 +838,22 @@
 
           if (override && override.closed) continue;
 
-          var allSlots = generateTimeSlots(checkDate.getDay(), override, dateStr);
+          // Build union of slots across all doctors' actual schedules
+          var slotSet = {};
+          if (allDoctorSchedules.length > 0) {
+            for (var d = 0; d < allDoctorSchedules.length; d++) {
+              doctorScheduleData = allDoctorSchedules[d];
+              var docSlots = generateTimeSlots(checkDate.getDay(), override, dateStr);
+              for (var s = 0; s < docSlots.length; s++) slotSet[docSlots[s]] = true;
+            }
+          } else {
+            doctorScheduleData = null;
+            var defSlots = generateTimeSlots(checkDate.getDay(), override, dateStr);
+            for (var s = 0; s < defSlots.length; s++) slotSet[defSlots[s]] = true;
+          }
+          doctorScheduleData = savedScheduleData;
+
+          var allSlots = Object.keys(slotSet).sort();
 
           for (var j = 0; j < allSlots.length; j++) {
             var time = allSlots[j];
@@ -853,6 +876,7 @@
             return;
           }
         }
+        doctorScheduleData = savedScheduleData;
         callback(null);
       }).catch(function() {
         callback(null);
