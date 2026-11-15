@@ -44,7 +44,7 @@
   var selectedTime = null;
   var selectedService = null;
   var urlService = null;
-  var takenSlots = {};
+  var takenSlots = {};         // dateStr → [{ start, end }] in minutes, for the selected doctor
   var scheduleOverrides = {};
   var selectedDoctor = null;   // { id, name, specialty }
   var doctors = [];
@@ -92,6 +92,34 @@
   function timeToMins(time) {
     var parts = time.split(':');
     return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+  }
+
+  function minsToTime(mins) {
+    return String(Math.floor(mins / 60)).padStart(2, '0') + ':' + String(mins % 60).padStart(2, '0');
+  }
+
+  // True when [start, end) overlaps any taken range of a day
+  function overlapsTaken(ranges, start, end) {
+    for (var i = 0; i < ranges.length; i++) {
+      if (start < ranges[i].end && end > ranges[i].start) return true;
+    }
+    return false;
+  }
+
+  // Doctor's config for a date: per-day entry > weekly template (only inside
+  // its validity period). Returns undefined when the doctor has nothing set
+  // for that date, in which case clinic hours apply.
+  function resolveDoctorDay(sched, dayOfWeek, dateStr) {
+    if (!sched) return undefined;
+    var day = sched.days && dateStr && sched.days[dateStr];
+    if (day) return day;
+    if (dateStr) {
+      if (sched.validFrom && dateStr < sched.validFrom) return undefined;
+      if (sched.validUntil && dateStr > sched.validUntil) return undefined;
+    }
+    var dow = String(dayOfWeek);
+    return (sched.defaultWeek && sched.defaultWeek[dow]) ||
+           (sched.weeklyHours && sched.weeklyHours[dow]) || undefined;
   }
 
   function escapeHtml(str) {
@@ -313,15 +341,9 @@
       // Rebuild takenSlots from live slot documents
       var monthTaken = {};
       slotsCache.forEach(function(d) {
-        var duration = d.duration || SLOT_DURATION;
         var startMins = timeToMins(d.time);
-        for (var m = startMins; m < startMins + duration; m += SLOT_DURATION) {
-          var hh = String(Math.floor(m / 60)).padStart(2, '0');
-          var mm = String(m % 60).padStart(2, '0');
-          var t = hh + ':' + mm;
-          if (!monthTaken[d.date]) monthTaken[d.date] = [];
-          if (!monthTaken[d.date].includes(t)) monthTaken[d.date].push(t);
-        }
+        if (!monthTaken[d.date]) monthTaken[d.date] = [];
+        monthTaken[d.date].push({ start: startMins, end: startMins + (d.duration || SLOT_DURATION) });
       });
 
       // Clear this month's stale entries then apply fresh data
@@ -343,16 +365,15 @@
         renderTimeSlots(selectedDate, dow);
 
         if (selectedTime) {
-          var nowTaken = takenSlots[selectedDate] || [];
-          if (nowTaken.includes(selectedTime)) {
-            // Slot just got taken by someone else — clear selection
+          // Re-apply the selected highlight lost during re-render
+          var stillOffered = false;
+          timeSlotsGrid.querySelectorAll('.time-slot').forEach(function(b) {
+            if (b.textContent === selectedTime) { b.classList.add('selected'); stillOffered = true; }
+          });
+          if (!stillOffered) {
+            // Slot just got taken by someone else (or the schedule changed) — clear selection
             selectedTime = null;
             formSection.classList.remove('visible');
-          } else {
-            // Re-apply the selected highlight lost during re-render
-            timeSlotsGrid.querySelectorAll('.time-slot').forEach(function(b) {
-              if (b.textContent === selectedTime) b.classList.add('selected');
-            });
           }
         }
       }
@@ -420,17 +441,23 @@
       var override = scheduleOverrides[dateStr];
       var isClosed = override && override.closed;
 
-      var totalSlots = generateTimeSlots(date.getDay(), override, dateStr).length;
-      var taken = (takenSlots[dateStr] || []).length;
-      var availableSlots = totalSlots - taken;
+      var daySlots = generateTimeSlots(date.getDay(), override, dateStr, doctorScheduleData);
+      var totalSlots = daySlots.length;
+      var dayTaken = takenSlots[dateStr] || [];
+      var availableSlots = 0;
+      for (var s = 0; s < daySlots.length; s++) {
+        var slotStart = timeToMins(daySlots[s]);
+        if (!overlapsTaken(dayTaken, slotStart, slotStart + SLOT_DURATION)) availableSlots++;
+      }
 
-      if (isPast || isClosed) {
+      if (isPast || isClosed || totalSlots === 0) {
+        // Past, clinic closed, or the doctor does not work that day
         btn.classList.add('disabled');
         btn.disabled = true;
-      } else if (availableSlots <= 0 && totalSlots > 0) {
+      } else if (availableSlots === 0) {
         btn.classList.add('fully-booked');
         btn.disabled = true;
-      } else if (totalSlots > 0) {
+      } else {
         btn.classList.add('has-slots');
       }
 
@@ -469,28 +496,12 @@
   }
 
   // ── GENERATE TIME SLOTS ──
-  function generateTimeSlots(dayOfWeek, override, dateStr) {
+  // Bookable 10-min cells for one doctor on one day. `sched` is that doctor's
+  // doctorSchedules document (or null when they have none).
+  function generateTimeSlots(dayOfWeek, override, dateStr, sched) {
     if (override && override.closed) return [];
 
-    // Resolve effective day config: per-day override > defaultWeek > weeklyHours (backward compat)
-    var doctorDay = null;
-    if (doctorScheduleData) {
-      var dow = String(dayOfWeek);
-      // Per-day entry takes priority over validity period
-      doctorDay = doctorScheduleData.days && dateStr && doctorScheduleData.days[dateStr];
-      if (!doctorDay) {
-        // Period check applies only when falling back to the weekly template
-        var withinPeriod = true;
-        if (dateStr) {
-          if (doctorScheduleData.validFrom && dateStr < doctorScheduleData.validFrom) withinPeriod = false;
-          if (doctorScheduleData.validUntil && dateStr > doctorScheduleData.validUntil) withinPeriod = false;
-        }
-        if (withinPeriod) {
-          doctorDay = (doctorScheduleData.defaultWeek && doctorScheduleData.defaultWeek[dow]) ||
-                      (doctorScheduleData.weeklyHours && doctorScheduleData.weeklyHours[dow]);
-        }
-      }
-    }
+    var doctorDay = resolveDoctorDay(sched, dayOfWeek, dateStr);
 
     if (doctorDay && !doctorDay.active) return [];
 
@@ -506,37 +517,27 @@
 
     var blocked = (override && override.blockedSlots) ? override.blockedSlots.slice() : [];
 
-    // Expand pauses into blocked 10-min slots
+    // Pauses and the doctor's blocked time ranges, in minutes
     var pauses = (doctorDay && doctorDay.pauses) || [];
-    pauses.forEach(function(p) {
-      var ps = timeToMins(p.start), pe = timeToMins(p.end);
-      for (var m = ps; m < pe; m += SLOT_DURATION) {
-        blocked.push(String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'));
-      }
+    var blockedRanges = pauses.map(function(p) {
+      return { start: timeToMins(p.start), end: timeToMins(p.end) };
     });
-
-    // Backward compat: busyBlocks
-    if (doctorScheduleData && doctorScheduleData.busyBlocks && dateStr) {
-      doctorScheduleData.busyBlocks.forEach(function(bb) {
+    if (sched && sched.busyBlocks && dateStr) {
+      sched.busyBlocks.forEach(function(bb) {
         if (bb.date !== dateStr) return;
-        var bStart = timeToMins(bb.startTime), bEnd = timeToMins(bb.endTime);
-        for (var m = bStart; m < bEnd; m += SLOT_DURATION) {
-          blocked.push(String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'));
-        }
+        blockedRanges.push({ start: timeToMins(bb.startTime), end: timeToMins(bb.endTime) });
       });
     }
 
     var slots = [];
-    var startParts = hours.open.split(':');
-    var endParts = hours.close.split(':');
-    var mins = parseInt(startParts[0]) * 60 + parseInt(startParts[1]);
-    var endMins = parseInt(endParts[0]) * 60 + parseInt(endParts[1]);
+    var mins = timeToMins(hours.open);
+    var endMins = timeToMins(hours.close);
 
     while (mins + SLOT_DURATION <= endMins) {
-      var hh = String(Math.floor(mins / 60)).padStart(2, '0');
-      var mm = String(mins % 60).padStart(2, '0');
-      var timeStr = hh + ':' + mm;
-      if (!blocked.includes(timeStr)) slots.push(timeStr);
+      var timeStr = minsToTime(mins);
+      if (!blocked.includes(timeStr) && !overlapsTaken(blockedRanges, mins, mins + SLOT_DURATION)) {
+        slots.push(timeStr);
+      }
       mins += SLOT_DURATION;
     }
     return slots;
@@ -545,8 +546,10 @@
   // ── RENDER TIME SLOTS ──
   function renderTimeSlots(dateStr, dayOfWeek) {
     var override = scheduleOverrides[dateStr];
-    var slots = generateTimeSlots(dayOfWeek, override, dateStr);
+    var slots = generateTimeSlots(dayOfWeek, override, dateStr, doctorScheduleData);
     var taken = takenSlots[dateStr] || [];
+    var workable = {};
+    slots.forEach(function(time) { workable[time] = true; });
 
     var now = new Date();
     var todayStr = formatDate(now.getFullYear(), now.getMonth(), now.getDate());
@@ -556,14 +559,6 @@
     timeSlotsGrid.innerHTML = '';
 
     var serviceDur = SERVICE_DURATIONS[selectedService] || SLOT_DURATION;
-    var docDay = doctorScheduleData && (
-      (doctorScheduleData.days && doctorScheduleData.days[dateStr]) ||
-      (doctorScheduleData.defaultWeek && doctorScheduleData.defaultWeek[String(dayOfWeek)]) ||
-      (doctorScheduleData.weeklyHours && doctorScheduleData.weeklyHours[String(dayOfWeek)]));
-    var dayClose = (docDay && docDay.active && docDay.end) ? docDay.end
-      : (override && !override.closed ? (override.closeTime || CLINIC_HOURS[dayOfWeek].close)
-      : (CLINIC_HOURS[dayOfWeek] ? CLINIC_HOURS[dayOfWeek].close : '20:00'));
-    var closeMin = timeToMins(dayClose);
 
     // Group available slots by hour
     var groups = {};
@@ -571,16 +566,13 @@
     slots.forEach(function(time) {
       var slotMins = timeToMins(time);
       if (dateStr === todayStr && slotMins <= currentMinutes) return;
-      // Whole service duration must fit within clinic hours
-      if (slotMins + serviceDur > closeMin) return;
-      // All 10-min intervals within service duration must be free
-      var blocked = false;
+      // The whole visit must fall on workable cells: inside working hours and
+      // clear of the doctor's pauses and blocked time
       for (var m = slotMins; m < slotMins + serviceDur; m += SLOT_DURATION) {
-        var hh = String(Math.floor(m / 60)).padStart(2, '0');
-        var mm = String(m % 60).padStart(2, '0');
-        if (taken.includes(hh + ':' + mm)) { blocked = true; break; }
+        if (!workable[minsToTime(m)]) return;
       }
-      if (blocked) return;
+      // ...and must not overlap an existing booking
+      if (overlapsTaken(taken, slotMins, slotMins + serviceDur)) return;
       var hour = time.split(':')[0];
       if (!groups[hour]) { groups[hour] = []; groupOrder.push(hour); }
       groups[hour].push(time);
@@ -738,14 +730,11 @@
     })
     .then(function() {
       showMessage('success', 'Wizyta zarezerwowana!', 'Twoja wizyta oczekuje na potwierdzenie. Skontaktujemy się z Tobą wkrótce.');
-      // Expand local takenSlots by duration so UI stays accurate
+      // Mark the booked range locally so the UI stays accurate until the listener fires
       if (!takenSlots[capturedDate]) takenSlots[capturedDate] = [];
       var startMins = timeToMins(capturedTime);
-      for (var m = startMins; m < startMins + capturedDuration; m += SLOT_DURATION) {
-        var hh = String(Math.floor(m / 60)).padStart(2, '0');
-        var mm = String(m % 60).padStart(2, '0');
-        takenSlots[capturedDate].push(hh + ':' + mm);
-      }
+      takenSlots[capturedDate].push({ start: startMins, end: startMins + capturedDuration });
+      selectedTime = null;
     })
     .catch(function(err) {
       if (err && err.code === 'slot-taken') {
@@ -781,10 +770,6 @@
 
   // ── NEXT FREE TERM (exported for homepage) ──
   window.PawsomeBooking = {
-    CLINIC_HOURS: CLINIC_HOURS,
-    SERVICES: SERVICES,
-    SERVICE_DURATIONS: SERVICE_DURATIONS,
-    generateTimeSlots: generateTimeSlots,
     getNextFreeTerm: function(callback) {
       var db = window.PawsomeDB;
       if (!db) { callback(null); return; }
@@ -807,28 +792,28 @@
         db.collection('doctors').get(),
         db.collection('doctorSchedules').get()
       ]).then(function(results) {
-        // Count taken slots per date|time key across all doctors
-        var slotCounts = {};
+        // Booked minute ranges per doctor and date
+        var taken = {};
         results[0].forEach(function(doc) {
           var d = doc.data();
-          var key = d.date + '|' + d.time;
-          slotCounts[key] = (slotCounts[key] || 0) + 1;
+          if (!d.doctorId || !d.date || !d.time) return;
+          var start = timeToMins(d.time);
+          var byDate = taken[d.doctorId] || (taken[d.doctorId] = {});
+          (byDate[d.date] || (byDate[d.date] = [])).push({ start: start, end: start + (d.duration || SLOT_DURATION) });
         });
         var overrides = {};
         results[1].forEach(function(doc) {
           overrides[doc.id] = doc.data();
         });
-        var doctorCount = results[2].size;
-        if (doctorCount === 0) { callback(null); return; }
+        var doctorIds = [];
+        results[2].forEach(function(doc) { doctorIds.push(doc.id); });
+        if (doctorIds.length === 0) { callback(null); return; }
 
-        // Collect all doctor schedules to find true available hours
-        var allDoctorSchedules = [];
-        results[3].forEach(function(doc) {
-          allDoctorSchedules.push(doc.data());
-        });
+        var schedules = {};
+        results[3].forEach(function(doc) { schedules[doc.id] = doc.data(); });
 
         var currentMinutes = now.getHours() * 60 + now.getMinutes();
-        var savedScheduleData = doctorScheduleData;
+        var dayNames = ['Nd','Pn','Wt','Śr','Cz','Pt','Sb'];
 
         for (var i = 0; i <= 14; i++) {
           var checkDate = new Date(now);
@@ -838,45 +823,35 @@
 
           if (override && override.closed) continue;
 
-          // Build union of slots across all doctors' actual schedules
-          var slotSet = {};
-          if (allDoctorSchedules.length > 0) {
-            for (var d = 0; d < allDoctorSchedules.length; d++) {
-              doctorScheduleData = allDoctorSchedules[d];
-              var docSlots = generateTimeSlots(checkDate.getDay(), override, dateStr);
-              for (var s = 0; s < docSlots.length; s++) slotSet[docSlots[s]] = true;
+          // Earliest free cell that day across doctors, each checked against
+          // their own schedule and their own bookings
+          var earliest = null;
+          for (var d = 0; d < doctorIds.length; d++) {
+            var id = doctorIds[d];
+            var docSlots = generateTimeSlots(checkDate.getDay(), override, dateStr, schedules[id] || null);
+            var docTaken = (taken[id] && taken[id][dateStr]) || [];
+            for (var s = 0; s < docSlots.length; s++) {
+              var slotMins = timeToMins(docSlots[s]);
+              if (i === 0 && slotMins <= currentMinutes) continue;
+              if (overlapsTaken(docTaken, slotMins, slotMins + SLOT_DURATION)) continue;
+              if (earliest === null || slotMins < earliest) earliest = slotMins;
+              break; // slots are ascending — the first free one is this doctor's earliest
             }
-          } else {
-            doctorScheduleData = null;
-            var defSlots = generateTimeSlots(checkDate.getDay(), override, dateStr);
-            for (var s = 0; s < defSlots.length; s++) slotSet[defSlots[s]] = true;
           }
-          doctorScheduleData = savedScheduleData;
+          if (earliest === null) continue;
 
-          var allSlots = Object.keys(slotSet).sort();
-
-          for (var j = 0; j < allSlots.length; j++) {
-            var time = allSlots[j];
-            if ((slotCounts[dateStr + '|' + time] || 0) >= doctorCount) continue;
-            if (i === 0) {
-              var parts = time.split(':');
-              var slotMins = parseInt(parts[0]) * 60 + parseInt(parts[1]);
-              if (slotMins <= currentMinutes) continue;
-            }
-            var label;
-            if (i === 0) label = 'Dziś, ' + time;
-            else if (i === 1) label = 'Jutro, ' + time;
-            else {
-              var dayNames = ['Nd','Pn','Wt','Śr','Cz','Pt','Sb'];
-              label = dayNames[checkDate.getDay()] + ' ' +
-                      checkDate.getDate() + '.' + String(checkDate.getMonth()+1).padStart(2,'0') +
-                      ', ' + time;
-            }
-            callback(label);
-            return;
+          var time = minsToTime(earliest);
+          var label;
+          if (i === 0) label = 'Dziś, ' + time;
+          else if (i === 1) label = 'Jutro, ' + time;
+          else {
+            label = dayNames[checkDate.getDay()] + ' ' +
+                    checkDate.getDate() + '.' + String(checkDate.getMonth()+1).padStart(2,'0') +
+                    ', ' + time;
           }
+          callback(label);
+          return;
         }
-        doctorScheduleData = savedScheduleData;
         callback(null);
       }).catch(function() {
         callback(null);

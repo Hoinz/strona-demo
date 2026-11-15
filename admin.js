@@ -22,11 +22,40 @@
   var currentUser = null;
   var viewMode = 'mine';   // 'mine' | 'all'
   var doctorName = '';
-  var canEditWebsite = true;
+  var canEditWebsite = false;    // from the roles doc — the same source the Firestore rules check
   var acceptedById = {};   // id → booking, for the click-to-edit modal
   var doctorScheduleCache = {};  // doctorId → schedule doc data
   var allDoctors = [];           // [{id, name}] for view-schedule selector
-  var currentUserRole = null;    // 'admin' | 'doctor' — from roles collection
+
+  // Clinic opening hours per JS day-of-week — the vertical range of the day timeline
+  var CLINIC_HOURS = {
+    1: { open: '08:00', close: '20:00' },
+    2: { open: '08:00', close: '20:00' },
+    3: { open: '08:00', close: '20:00' },
+    4: { open: '08:00', close: '20:00' },
+    5: { open: '08:00', close: '20:00' },
+    6: { open: '08:00', close: '20:00' },
+    0: { open: '09:00', close: '17:00' }
+  };
+
+  // slug → name / duration. Defaults mirror the seed data; replaced by the
+  // live `services` collection once the dashboard loads (see loadServices).
+  var serviceNames = {
+    'badania-profilaktyczne': 'Badania profilaktyczne',
+    'szczepienia': 'Szczepienia',
+    'stomatologia': 'Stomatologia',
+    'chirurgia': 'Chirurgia',
+    'diagnostyka': 'Diagnostyka',
+    'plany-zywieniowe': 'Plany żywieniowe'
+  };
+  var serviceDurations = {
+    'badania-profilaktyczne': 20,
+    'szczepienia': 20,
+    'stomatologia': 60,
+    'chirurgia': 90,
+    'diagnostyka': 30,
+    'plany-zywieniowe': 30
+  };
 
   // ── AUTH ──
   function initAuth() {
@@ -46,19 +75,19 @@
             return;
           }
           currentUser = user;
-          currentUserRole = role;
           canEditWebsite = role === 'admin' || !!roleData.canEditWebsite;
           loginView.style.display = 'none';
           dashboard.classList.add('visible');
-          if (!dashboardInitialized) {
-            loadDoctorInfo(user.uid, function() {
+          // Reload on every sign-in — a different user may log in without a page reload
+          loadDoctorInfo(user.uid, function() {
+            if (!dashboardInitialized) {
               initDashboard();
               dashboardInitialized = true;
               checkContentHealth();
-            });
-          } else {
-            loadBookings();
-          }
+            } else {
+              loadBookings();
+            }
+          });
         }).catch(function() {
           auth.signOut();
           loginError.textContent = 'Błąd weryfikacji uprawnień. Spróbuj ponownie.';
@@ -66,9 +95,8 @@
         });
       } else {
         currentUser = null;
-        currentUserRole = null;
         doctorName = '';
-        canEditWebsite = true;
+        canEditWebsite = false;
         loginView.style.display = '';
         dashboard.classList.remove('visible');
         if (unsubscribePending) { unsubscribePending(); unsubscribePending = null; }
@@ -79,27 +107,25 @@
 
   // ── LOAD DOCTOR INFO ──
   function loadDoctorInfo(uid, callback) {
-    window.PawsomeDB.collection('doctors').doc(uid).get().then(function(doc) {
-      if (doc.exists) {
-        var data = doc.data();
-        doctorName = data.name || '';
-        canEditWebsite = data.canEditWebsite !== undefined ? !!data.canEditWebsite : true;
-      } else {
-        doctorName = 'Lekarz';
-        canEditWebsite = true;
-      }
+    function done() {
       var labelEl = document.getElementById('doctor-label');
       if (labelEl) labelEl.textContent = 'Zalogowany jako: ' + doctorName;
       applyEditorPermission();
       callback();
-    }).catch(function() { callback(); });
+    }
+    window.PawsomeDB.collection('doctors').doc(uid).get().then(function(doc) {
+      doctorName = (doc.exists && doc.data().name) || 'Lekarz';
+      done();
+    }).catch(function() {
+      doctorName = 'Lekarz';
+      done();
+    });
   }
 
   function applyEditorPermission() {
     var editorTab = document.getElementById('main-tab-editor');
     if (!editorTab) return;
-    var hasEditorAccess = canEditWebsite;
-    if (hasEditorAccess) {
+    if (canEditWebsite) {
       editorTab.style.display = '';
     } else {
       editorTab.style.display = 'none';
@@ -200,6 +226,7 @@
 
     loadAllDoctors();
     loadAllDoctorSchedules();
+    loadServices();
     var schedBtn = document.getElementById('btn-schedule');
     if (schedBtn) schedBtn.addEventListener('click', openScheduleModal);
     var viewSchedBtn = document.getElementById('btn-view-schedule');
@@ -274,7 +301,7 @@
     });
     updateCountsFromData(counts);
 
-    // Build acceptedById for conflict detection (always date-specific)
+    // Build acceptedById for the click-to-edit handlers (always date-specific)
     var acceptedArr = allDateBookings.filter(function(b) { return b.status === 'accepted'; });
     acceptedById = {};
     acceptedArr.forEach(function(b) { acceptedById[b.id] = b; });
@@ -364,19 +391,10 @@
     if (!timelineEl) return;
 
     var PX_PER_MIN = 2.5;
-    var clinicHours = (window.PawsomeBooking && window.PawsomeBooking.CLINIC_HOURS) || {
-      1: { open: '08:00', close: '20:00' },
-      2: { open: '08:00', close: '20:00' },
-      3: { open: '08:00', close: '20:00' },
-      4: { open: '08:00', close: '20:00' },
-      5: { open: '08:00', close: '20:00' },
-      6: { open: '08:00', close: '20:00' },
-      0: { open: '09:00', close: '17:00' }
-    };
 
     var date = new Date(dateStr + 'T00:00:00');
     var dayOfWeek = date.getDay();
-    var h = clinicHours[dayOfWeek];
+    var h = CLINIC_HOURS[dayOfWeek];
     if (!h) { timelineEl.innerHTML = ''; return; }
 
     var openMin = timeToMins(h.open);
@@ -602,27 +620,28 @@
     modal.querySelector('.appt-modal-close').addEventListener('click', closeRejectedModal);
 
     modal.querySelector('.rejected-btn-restore').addEventListener('click', function() {
+      var btn = this;
       var durVal = parseInt(modal.querySelector('.pending-dur-input').value) || dur;
-      var newStart = timeToMins(booking.time);
-      var newEnd = newStart + durVal;
-      var conflictTime = null;
-      Object.keys(acceptedById).forEach(function(bid) {
-        var b = acceptedById[bid];
-        if (b.doctorId !== booking.doctorId || b.id === booking.id) return;
-        var bStart = timeToMins(b.time);
-        var bEnd = bStart + (b.duration || getServiceDuration(b.service) || 20);
-        if (newStart < bEnd && newEnd > bStart) conflictTime = b.time;
-      });
       var errorEl = modal.querySelector('.rejected-modal-error');
-      if (conflictTime) {
-        errorEl.textContent = 'Czas wizyty koliduje z wizytą o godz. ' + conflictTime + '. Skróć czas trwania.';
+      function fail(msg) {
+        errorEl.textContent = msg;
         errorEl.style.display = '';
-        return;
+        btn.disabled = false;
       }
       var schedErr = validateAgainstDoctorSchedule(booking.time, durVal, booking.date, booking.doctorId);
-      if (schedErr) { errorEl.textContent = schedErr; errorEl.style.display = ''; return; }
+      if (schedErr) { fail(schedErr); return; }
       errorEl.style.display = 'none';
-      restoreBooking(booking, durVal).then(closeRejectedModal);
+      btn.disabled = true;
+      var newStart = timeToMins(booking.time);
+      findConflict(booking.doctorId, booking.date, newStart, newStart + durVal, booking.id)
+        .then(function(conflictTime) {
+          if (conflictTime) {
+            fail('Czas wizyty koliduje z wizytą o godz. ' + conflictTime + '. Skróć czas trwania.');
+            return;
+          }
+          return restoreBooking(booking, durVal).then(closeRejectedModal);
+        })
+        .catch(function() { fail('Błąd zapisu — spróbuj ponownie.'); });
     });
   }
 
@@ -687,28 +706,30 @@
     overlay.addEventListener('click', function(e) { if (e.target === overlay) closePendingModal(); });
     modal.querySelector('.appt-modal-close').addEventListener('click', closePendingModal);
 
+    var pendingErrorEl = modal.querySelector('.pending-modal-error');
+
     modal.querySelector('.pending-btn-accept').addEventListener('click', function() {
+      var btn = this;
       var durVal = parseInt(modal.querySelector('.pending-dur-input').value) || dur;
-      var newStart = timeToMins(booking.time);
-      var newEnd = newStart + durVal;
-      var conflictTime = null;
-      Object.keys(acceptedById).forEach(function(bid) {
-        var b = acceptedById[bid];
-        if (b.doctorId !== booking.doctorId || b.id === booking.id) return;
-        var bStart = timeToMins(b.time);
-        var bEnd = bStart + (b.duration || getServiceDuration(b.service) || 20);
-        if (newStart < bEnd && newEnd > bStart) conflictTime = b.time;
-      });
-      var errorEl = modal.querySelector('.pending-modal-error');
-      if (conflictTime) {
-        errorEl.textContent = 'Czas wizyty koliduje z wizytą o godz. ' + conflictTime + '. Skróć czas trwania.';
-        errorEl.style.display = '';
-        return;
+      function fail(msg) {
+        pendingErrorEl.textContent = msg;
+        pendingErrorEl.style.display = '';
+        btn.disabled = false;
       }
       var schedErr = validateAgainstDoctorSchedule(booking.time, durVal, booking.date, booking.doctorId);
-      if (schedErr) { errorEl.textContent = schedErr; errorEl.style.display = ''; return; }
-      errorEl.style.display = 'none';
-      confirmAccept(booking.id, booking.slotId || booking.id, durVal).then(closePendingModal);
+      if (schedErr) { fail(schedErr); return; }
+      pendingErrorEl.style.display = 'none';
+      btn.disabled = true;
+      var newStart = timeToMins(booking.time);
+      findConflict(booking.doctorId, booking.date, newStart, newStart + durVal, booking.id)
+        .then(function(conflictTime) {
+          if (conflictTime) {
+            fail('Czas wizyty koliduje z wizytą o godz. ' + conflictTime + '. Skróć czas trwania.');
+            return;
+          }
+          return confirmAccept(booking.id, booking.slotId || booking.id, durVal).then(closePendingModal);
+        })
+        .catch(function() { fail('Błąd zapisu — spróbuj ponownie.'); });
     });
 
     modal.querySelector('.pending-btn-reject').addEventListener('click', function() {
@@ -722,7 +743,13 @@
     });
 
     modal.querySelector('.appt-btn-delete-confirm').addEventListener('click', function() {
-      rejectBooking(booking.id, booking.slotId || booking.id).then(closePendingModal);
+      var btn = this;
+      btn.disabled = true;
+      rejectBooking(booking.id, booking.slotId || booking.id).then(closePendingModal).catch(function() {
+        pendingErrorEl.textContent = 'Błąd zapisu — spróbuj ponownie.';
+        pendingErrorEl.style.display = '';
+        btn.disabled = false;
+      });
     });
   }
 
@@ -747,16 +774,11 @@
     overlay.id = 'appt-modal-overlay';
     overlay.className = 'appt-modal-overlay';
 
-    var services = (window.PawsomeBooking && window.PawsomeBooking.SERVICES) || {
-      'badania-profilaktyczne': 'Badania profilaktyczne',
-      'szczepienia': 'Szczepienia',
-      'stomatologia': 'Stomatologia',
-      'chirurgia': 'Chirurgia',
-      'diagnostyka': 'Diagnostyka',
-      'plany-zywieniowe': 'Plany żywieniowe'
-    };
-    var serviceOptions = Object.keys(services).map(function(key) {
-      return '<option value="' + key + '"' + (booking.service === key ? ' selected' : '') + '>' + escapeHtml(services[key]) + '</option>';
+    var serviceKeys = Object.keys(serviceNames);
+    // Keep the visit's current service selectable even if it has since been removed
+    if (booking.service && serviceKeys.indexOf(booking.service) === -1) serviceKeys.push(booking.service);
+    var serviceOptions = serviceKeys.map(function(key) {
+      return '<option value="' + escapeAttr(key) + '"' + (booking.service === key ? ' selected' : '') + '>' + escapeHtml(getServiceName(key)) + '</option>';
     }).join('');
 
     overlay.innerHTML =
@@ -767,6 +789,7 @@
         '</div>' +
         '<div class="appt-modal-body">' +
           '<p class="appt-modal-meta">' + escapeHtml(getServiceName(booking.service)) + ' &bull; ' + escapeHtml(booking.time) + ' \u2013 ' + escapeHtml(endTime) + ' &bull; ' + dur + ' min' + (booking.comment ? '<br><span class="pending-comment">\uD83D\uDCAC ' + escapeHtml(booking.comment) + '</span>' : '') + '</p>' +
+          '<div class="appt-form-error appt-modal-error" style="display:none"></div>' +
           '<div class="appt-modal-actions">' +
             '<div class="appt-actions-edit">' +
               '<button class="appt-btn-amend-time">Edytuj termin</button>' +
@@ -814,7 +837,15 @@
     overlay.addEventListener('click', function(e) { if (e.target === overlay) closeApptModal(); });
     modal.querySelector('.appt-modal-close').addEventListener('click', closeApptModal);
 
+    // Shown above whichever panel is open (actions, reject confirm, either form)
+    var modalErrorEl = modal.querySelector('.appt-modal-error');
+    function showError(msg) {
+      modalErrorEl.textContent = msg;
+      modalErrorEl.style.display = '';
+    }
+
     function showActions() {
+      modalErrorEl.style.display = 'none';
       modal.querySelector('.appt-modal-actions').style.display = '';
       modal.querySelector('.appt-delete-confirm').style.display = 'none';
       modal.querySelector('.appt-time-form').style.display = 'none';
@@ -827,7 +858,12 @@
     });
     modal.querySelector('.appt-btn-delete-cancel').addEventListener('click', showActions);
     modal.querySelector('.appt-btn-delete-confirm').addEventListener('click', function() {
-      deleteAppt(booking.id, booking.slotId || booking.id);
+      var btn = this;
+      btn.disabled = true;
+      rejectBooking(booking.id, booking.slotId || booking.id).then(closeApptModal).catch(function() {
+        showError('Błąd zapisu — spróbuj ponownie.');
+        btn.disabled = false;
+      });
     });
 
     modal.querySelector('.appt-btn-amend-time').addEventListener('click', function() {
@@ -864,34 +900,37 @@
         errorEl.style.display = '';
         return;
       }
-      var newStart = timeToMins(newTime);
-      var newEnd = newStart + newDur;
-      var conflictTime = null;
-      Object.keys(acceptedById).forEach(function(bid) {
-        var b = acceptedById[bid];
-        if (b.doctorId !== booking.doctorId || b.id === booking.id || b.date !== newDate) return;
-        var bStart = timeToMins(b.time);
-        var bEnd = bStart + (b.duration || getServiceDuration(b.service) || 20);
-        if (newStart < bEnd && newEnd > bStart) conflictTime = b.time;
-      });
-      if (conflictTime) {
-        errorEl.textContent = 'Czas wizyty koliduje z wizytą o godz. ' + conflictTime + '. Zmień godzinę lub skróć czas trwania.';
-        errorEl.style.display = '';
-        return;
-      }
       var schedErr = validateAgainstDoctorSchedule(newTime, newDur, newDate, booking.doctorId);
       if (schedErr) { errorEl.textContent = schedErr; errorEl.style.display = ''; return; }
       errorEl.style.display = 'none';
-      amendAppt(booking.id, booking.slotId || booking.id, {
-        date: newDate,
-        time: newTime,
-        duration: newDur
-      });
+      var saveBtn = form.querySelector('.appt-btn-save');
+      saveBtn.disabled = true;
+      function fail(msg) {
+        errorEl.textContent = msg;
+        errorEl.style.display = '';
+        saveBtn.disabled = false;
+      }
+      var newStart = timeToMins(newTime);
+      findConflict(booking.doctorId, newDate, newStart, newStart + newDur, booking.id)
+        .then(function(conflictTime) {
+          if (conflictTime) {
+            fail('Czas wizyty koliduje z wizytą o godz. ' + conflictTime + '. Zmień godzinę lub skróć czas trwania.');
+            return;
+          }
+          return amendAppt(booking.id, booking.slotId || booking.id, {
+            date: newDate,
+            time: newTime,
+            duration: newDur
+          });
+        })
+        .catch(function() { fail('Błąd zapisu — spróbuj ponownie.'); });
     });
 
     modal.querySelector('.appt-entry-form').addEventListener('submit', function(e) {
       e.preventDefault();
       var form = this;
+      var saveBtn = form.querySelector('.appt-btn-save');
+      saveBtn.disabled = true;
       amendAppt(booking.id, null, {
         patientName: form.elements.patientName.value.trim(),
         petName: form.elements.petName.value.trim(),
@@ -899,6 +938,9 @@
         email: form.elements.email.value.trim(),
         service: form.elements.service.value,
         comment: form.elements.comment.value.trim()
+      }).catch(function() {
+        showError('Błąd zapisu — spróbuj ponownie.');
+        saveBtn.disabled = false;
       });
     });
   }
@@ -912,45 +954,60 @@
     }, { once: true });
   }
 
-  function deleteAppt(id, slotId) {
-    rejectBooking(id, slotId).then(closeApptModal);
-  }
-
+  // Resolves once saved (and closes the modal); rejects on failure so the
+  // caller can show the error next to the form that triggered it.
   function amendAppt(id, slotId, fields) {
     var db = window.PawsomeDB;
     var batch = db.batch();
     batch.update(db.collection('appointments').doc(id), fields);
     if (slotId) batch.update(db.collection('slots').doc(slotId), { date: fields.date, time: fields.time, duration: fields.duration });
-    batch.commit().then(closeApptModal).catch(function(err) {
-      var errorEl = document.querySelector('.appt-form-error');
-      if (errorEl) { errorEl.textContent = 'Błąd zapisu — spróbuj ponownie'; errorEl.style.display = ''; }
-    });
+    return batch.commit().then(closeApptModal);
   }
 
   // ── HELPERS ──
+  // Replace the built-in service defaults with the live `services` collection,
+  // so services added or renamed in the editor show up correctly here too.
+  function loadServices() {
+    window.PawsomeDB.collection('services').get().then(function(snap) {
+      if (snap.empty) return;
+      var names = {}, durations = {};
+      snap.forEach(function(doc) {
+        var d = doc.data();
+        var slug = d.slug || doc.id;
+        names[slug] = d.name || slug;
+        if (d.duration) durations[slug] = d.duration;
+      });
+      serviceNames = names;
+      serviceDurations = durations;
+      if (dashboardInitialized) refreshDisplay(datePicker.value);
+    }).catch(function() {});
+  }
+
   function getServiceDuration(service) {
-    var durations = (window.PawsomeBooking && window.PawsomeBooking.SERVICE_DURATIONS) || {
-      'badania-profilaktyczne': 20,
-      'szczepienia': 20,
-      'stomatologia': 60,
-      'chirurgia': 90,
-      'diagnostyka': 30,
-      'plany-zywieniowe': 30
-    };
-    return durations[service] || 10;
+    return serviceDurations[service] || 10;
   }
 
   function getServiceName(slug) {
-    // Use shared SERVICES if booking.js is loaded, otherwise fallback
-    var services = (window.PawsomeBooking && window.PawsomeBooking.SERVICES) || {
-      'badania-profilaktyczne': 'Badania profilaktyczne',
-      'szczepienia': 'Szczepienia',
-      'stomatologia': 'Stomatologia',
-      'chirurgia': 'Chirurgia',
-      'diagnostyka': 'Diagnostyka',
-      'plany-zywieniowe': 'Plany żywieniowe'
-    };
-    return services[slug] || slug || '';
+    return serviceNames[slug] || slug || '';
+  }
+
+  // Start time of an accepted visit of the same doctor overlapping
+  // [startMin, endMin) on `date`, or null. Asks Firestore rather than the
+  // in-memory list, which only holds the date selected in the date picker
+  // (and, in "mine" view, only the signed-in doctor's visits).
+  function findConflict(doctorId, date, startMin, endMin, excludeId) {
+    return window.PawsomeDB.collection('appointments').where('date', '==', date).get()
+      .then(function(snap) {
+        var conflictTime = null;
+        snap.forEach(function(doc) {
+          var b = doc.data();
+          if (doc.id === excludeId || b.status !== 'accepted' || b.doctorId !== doctorId) return;
+          var bStart = timeToMins(b.time);
+          var bEnd = bStart + (b.duration || getServiceDuration(b.service) || 20);
+          if (startMin < bEnd && endMin > bStart) conflictTime = b.time;
+        });
+        return conflictTime;
+      });
   }
 
   function timeToMins(timeStr) {
@@ -1013,6 +1070,19 @@
     return new Date(+p[0], +p[1]-1, +p[2]).getDay();
   }
 
+  // Doctor's config for a date: per-day entry > weekly template (only inside
+  // its validity period). Null when nothing is set for that date.
+  // Mirrors resolveDoctorDay() in booking.js — keep the two in sync.
+  function resolveDayConfig(sched, dateStr, dow) {
+    if (!sched) return null;
+    var day = sched.days && sched.days[dateStr];
+    if (day) return day;
+    if (sched.validFrom && dateStr < sched.validFrom) return null;
+    if (sched.validUntil && dateStr > sched.validUntil) return null;
+    return (sched.defaultWeek && sched.defaultWeek[String(dow)]) ||
+           (sched.weeklyHours && sched.weeklyHours[String(dow)]) || null;
+  }
+
   function validateAgainstScheduleData(time, duration, date, sched) {
     if (!sched) return null;
     var vStart = timeToMins(time), vEnd = vStart + duration;
@@ -1025,16 +1095,7 @@
           return 'Wizyta przypada na zablokowany czas lekarza (' + bb.startTime + '\u2013' + bb.endTime + '). Wybierz inną godzinę.';
       }
     }
-    // Per-day entry takes priority over validity period
-    var dow = String(dateStrToDow(date));
-    var day = sched.days && sched.days[date];
-    if (!day) {
-      // Period check applies only when falling back to the weekly template
-      if (sched.validFrom && date < sched.validFrom) return null;
-      if (sched.validUntil && date > sched.validUntil) return null;
-      day = (sched.defaultWeek && sched.defaultWeek[dow]) ||
-            (sched.weeklyHours && sched.weeklyHours[dow]);
-    }
+    var day = resolveDayConfig(sched, date, dateStrToDow(date));
     if (!day) return null;
     if (!day.active) return 'Lekarz nie pracuje w wybranym dniu.';
     var wStart = timeToMins(day.start), wEnd = timeToMins(day.end);
@@ -1060,7 +1121,8 @@
 
     var sched = doctorScheduleCache[currentUser.uid] || {};
     var defaultWeek = sched.defaultWeek || sched.weeklyHours || {};
-    var days = sched.days || {};
+    // Copy — edits must not leak into the cached schedule if the save is cancelled or rejected
+    var days = Object.assign({}, sched.days);
     var busyBlocks = (sched.busyBlocks || []).slice();
     var validFrom = sched.validFrom || '';
     var validUntil = sched.validUntil || '';
@@ -1406,18 +1468,6 @@
     var viewMonth = now.getMonth();
     var selectedDoctorId = currentUser.uid;
 
-    function getDayConfig(sched, dateStr, dow) {
-      if (!sched) return null;
-      // Per-day entry takes priority over validity period
-      var dayEntry = sched.days && sched.days[dateStr];
-      if (dayEntry) return dayEntry;
-      // Period check applies only when falling back to the weekly template
-      if (sched.validFrom && dateStr < sched.validFrom) return null;
-      if (sched.validUntil && dateStr > sched.validUntil) return null;
-      return (sched.defaultWeek && sched.defaultWeek[String(dow)]) ||
-             (sched.weeklyHours && sched.weeklyHours[String(dow)]);
-    }
-
     function countStats(year, month, doctorId) {
       var sched = doctorScheduleCache[doctorId];
       var lastDate = new Date(year, month + 1, 0).getDate();
@@ -1425,7 +1475,7 @@
       for (var d = 1; d <= lastDate; d++) {
         var dateStr = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
         var dow = new Date(year, month, d).getDay();
-        var cfg = getDayConfig(sched, dateStr, dow);
+        var cfg = resolveDayConfig(sched, dateStr, dow);
         if (cfg && cfg.active) working++;
         else if (cfg && !cfg.active) off++;
         if (sched && sched.busyBlocks) {
@@ -1453,7 +1503,7 @@
       function renderCell(cellYear, cellMonth, d, isOtherMonth) {
         var dateStr = cellYear + '-' + String(cellMonth + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
         var dow = new Date(cellYear, cellMonth, d).getDay();
-        var cfg = isOtherMonth ? null : getDayConfig(sched, dateStr, dow);
+        var cfg = isOtherMonth ? null : resolveDayConfig(sched, dateStr, dow);
         var dayBusy = (!isOtherMonth && sched && sched.busyBlocks)
           ? sched.busyBlocks.filter(function(bb) { return bb.date === dateStr; })
           : [];
@@ -1635,18 +1685,11 @@
     var dayNames = ['Poniedziałek','Wtorek','Środa','Czwartek','Piątek','Sobota','Niedziela'];
     var dowForDate = [1,2,3,4,5,6,0]; // Mon..Sun → JS getDay values
 
-    function getDayConfig(sched, dateStr, jsdow) {
-      if (!sched) return null;
-      if (sched.validFrom && dateStr < sched.validFrom) return null;
-      if (sched.validUntil && dateStr > sched.validUntil) return null;
-      return (sched.days && sched.days[dateStr]) ||
-             (sched.defaultWeek && sched.defaultWeek[String(jsdow)]) ||
-             (sched.weeklyHours && sched.weeklyHours[String(jsdow)]);
-    }
-
+    // Polish plural: 1 wizyta, 2–4 wizyty, 5–21 wizyt, 22–24 wizyty…
     function apptCountLabel(n) {
       if (n === 1) return '1 wizyta';
-      if (n <= 4) return n + ' wizyty';
+      var last = n % 10, lastTwo = n % 100;
+      if (last >= 2 && last <= 4 && (lastTwo < 12 || lastTwo > 14)) return n + ' wizyty';
       return n + ' wizyt';
     }
 
@@ -1663,7 +1706,7 @@
 
       // For single-doctor mode: pull schedule config + busy blocks
       var sched = filterDoctorId ? doctorScheduleCache[filterDoctorId] : null;
-      var cfg = filterDoctorId ? getDayConfig(sched, dateStr, jsdow) : null;
+      var cfg = filterDoctorId ? resolveDayConfig(sched, dateStr, jsdow) : null;
       var isActive = cfg && cfg.active;
       var isOff = filterDoctorId && cfg && !cfg.active;
       var busyBlocks = (sched && sched.busyBlocks)
@@ -1705,7 +1748,7 @@
         html += '<div class="week-appt-count">' + escapeHtml(apptCountLabel(dayAppts.length)) + '</div>';
         html += '<div class="week-appt-list">';
         dayAppts.forEach(function(a) {
-          var endTime = minsToTime(timeToMins(a.time) + (a.duration || 20));
+          var endTime = minsToTime(timeToMins(a.time) + (a.duration || getServiceDuration(a.service) || 20));
           var statusCls = a.status === 'accepted' ? 'week-appt-status-accepted' : 'week-appt-status-pending';
           var itemBorder = a.status === 'accepted' ? 'week-appt-accent-accepted' : 'week-appt-accent-pending';
           var statusLabel = a.status === 'accepted' ? 'Potw.' : 'Oczek.';
@@ -1800,26 +1843,25 @@
       var contentEl = overlay.querySelector('#week-sched-content');
       contentEl.innerHTML = '<div class="week-sched-loading">Ładowanie wizyt\u2026</div>';
 
-      var promises = weekDates.map(function(dateStr) {
-        return window.PawsomeDB.collection('appointments')
-          .where('date', '==', dateStr)
-          .get();
-      });
-      Promise.all(promises)
-        .then(function(snaps) {
+      var requestedWeek = weekDates;
+      // One range query for the whole week (single-field index, no composite needed)
+      window.PawsomeDB.collection('appointments')
+        .where('date', '>=', requestedWeek[0])
+        .where('date', '<=', requestedWeek[6])
+        .get()
+        .then(function(snap) {
+          // Ignore a response that arrives after the user moved to another week/doctor
+          if (requestedWeek !== weekDates || doctorId !== selectedDoctorId) return;
           var apptsByDate = {};
-          snaps.forEach(function(snap, i) {
-            var dateStr = weekDates[i];
-            snap.forEach(function(doc) {
-              var a = doc.data();
-              if (a.status !== 'accepted' && a.status !== 'pending') return;
-              if (doctorId !== 'all' && a.doctorId !== doctorId) return;
-              if (!apptsByDate[dateStr]) apptsByDate[dateStr] = [];
-              apptsByDate[dateStr].push(a);
-            });
+          snap.forEach(function(doc) {
+            var a = doc.data();
+            if (a.status !== 'accepted' && a.status !== 'pending') return;
+            if (doctorId !== 'all' && a.doctorId !== doctorId) return;
+            if (!apptsByDate[a.date]) apptsByDate[a.date] = [];
+            apptsByDate[a.date].push(a);
           });
           var filterArg = doctorId !== 'all' ? doctorId : null;
-          contentEl.innerHTML = buildWeekGrid(weekDates, apptsByDate, filterArg, todayStr, doctorNameMap);
+          contentEl.innerHTML = buildWeekGrid(requestedWeek, apptsByDate, filterArg, todayStr, doctorNameMap);
         })
         .catch(function(err) {
           console.error('Week schedule fetch error:', err);
@@ -1916,7 +1958,8 @@
         var lastErr = null;
         errorSnap.forEach(function(doc) {
           var d = doc.data();
-          if (!lastErr || (d.timestamp && d.timestamp.toDate() > lastErr)) lastErr = d.timestamp.toDate();
+          var ts = d.timestamp && d.timestamp.toDate();
+          if (ts && (!lastErr || ts > lastErr)) lastErr = ts;
         });
         warnings.push('<strong>Uwaga:</strong> wykryto ' + errCount + ' problem' + (errCount === 1 ? '' : errCount < 5 ? 'y' : 'ów') + ' z ładowaniem treści strony w ostatnich 24h.' + (lastErr ? ' Ostatni: ' + lastErr.toLocaleString('pl-PL') : ''));
       }
@@ -1973,7 +2016,7 @@
       results[7].forEach(function(doc) { editorData.doctors.push(Object.assign({ _id: doc.id }, doc.data())); });
       renderEditor(container);
     }).catch(function(err) {
-      container.innerHTML = '<div style="text-align:center;padding:2rem;color:#C62828">Błąd ładowania treści: ' + (err.message || err) + '</div>';
+      container.innerHTML = '<div style="text-align:center;padding:2rem;color:#C62828">Błąd ładowania treści: ' + escapeHtml(err.message || String(err)) + '</div>';
     });
   }
 
@@ -1988,6 +2031,10 @@
         field('Tytuł (wyróżnienie)', 'hero-titleEmphasis', d.titleEmphasis) +
         field('Tytuł (po)', 'hero-titleAfter', d.titleAfter) +
         fieldTA('Podtytuł', 'hero-subtitle', d.subtitle) +
+        '<div class="editor-field-row">' +
+          field('Przycisk główny', 'hero-ctaPrimary', d.ctaPrimary) +
+          field('Przycisk dodatkowy', 'hero-ctaSecondary', d.ctaSecondary) +
+        '</div>' +
         saveBtn('hero');
     });
 
@@ -2106,10 +2153,7 @@
   }
 
   // ── Editor helpers ──
-  function esc(s) {
-    if (!s) return '';
-    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-  }
+  var esc = escapeHtml;
   function field(label, id, defaultVal) {
     return '<div class="editor-field"><label for="ed-' + id + '">' + esc(label) + '</label><input type="text" id="ed-' + id + '" value="' + esc(defaultVal) + '"></div>';
   }
@@ -2245,7 +2289,10 @@
         titleBefore: val('hero-titleBefore'),
         titleEmphasis: val('hero-titleEmphasis'),
         titleAfter: val('hero-titleAfter'),
-        subtitle: val('hero-subtitle')
+        subtitle: val('hero-subtitle'),
+        // Fall back to the homepage defaults so an empty field never blanks a button
+        ctaPrimary: val('hero-ctaPrimary').trim() || 'Umów wizytę →',
+        ctaSecondary: val('hero-ctaSecondary').trim() || 'Nasze usługi'
       };
     }
     if (section === 'stats') {

@@ -264,58 +264,6 @@
   background: rgba(198,40,40,0.1);
   color: #c62828;
 }
-.booking-actions {
-  display: flex;
-  gap: 0.5rem;
-  flex-shrink: 0;
-}
-.btn-accept {
-  background: var(--deep-olive);
-  color: var(--cream);
-  border: none;
-  padding: 0.6rem 1.2rem;
-  border-radius: 50px;
-  font-size: 0.82rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  font-family: 'DM Sans', sans-serif;
-}
-.btn-accept:hover {
-  background: var(--charcoal);
-}
-.btn-accept-change-time {
-  background: transparent;
-  color: var(--deep-olive);
-  border: 1.5px solid var(--deep-olive);
-  padding: 0.6rem 1.2rem;
-  border-radius: 50px;
-  font-size: 0.82rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  font-family: 'DM Sans', sans-serif;
-}
-.btn-accept-change-time:hover {
-  background: var(--deep-olive);
-  color: var(--cream);
-}
-.btn-reject {
-  background: transparent;
-  color: #c62828;
-  border: 1.5px solid #c62828;
-  padding: 0.6rem 1.2rem;
-  border-radius: 50px;
-  font-size: 0.82rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  font-family: 'DM Sans', sans-serif;
-}
-.btn-reject:hover {
-  background: #c62828;
-  color: var(--cream);
-}
 .no-bookings {
   text-align: center;
   padding: 3rem;
@@ -496,18 +444,7 @@
 .sch-color-4 { background: rgba(190,190,120,0.32); color: #3a3a08; border: 1px solid rgba(190,190,120,0.6); }
 .sch-color-5 { background: rgba(120,190,190,0.35); color: #0a3838; border: 1px solid rgba(120,190,190,0.6); }
 
-/* ── DURATION CONFIRM ── */
-.duration-confirm {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-.duration-confirm label {
-  font-size: 0.82rem;
-  color: #666;
-  white-space: nowrap;
-}
+/* ── DURATION INPUT ── */
 .duration-input {
   width: 72px;
   padding: 0.4rem 0.6rem;
@@ -516,32 +453,6 @@
   font-size: 0.85rem;
   font-family: 'DM Sans', sans-serif;
   background: var(--cream);
-}
-.btn-confirm-accept {
-  background: var(--deep-olive);
-  color: var(--cream);
-  border: none;
-  padding: 0.5rem 1rem;
-  border-radius: 50px;
-  font-size: 0.82rem;
-  font-weight: 500;
-  cursor: pointer;
-  font-family: 'DM Sans', sans-serif;
-  transition: background 0.25s ease;
-}
-.btn-confirm-accept:hover {
-  background: var(--charcoal);
-}
-.btn-cancel-accept {
-  background: transparent;
-  color: #888;
-  border: 1.5px solid #ddd;
-  padding: 0.5rem 1rem;
-  border-radius: 50px;
-  font-size: 0.82rem;
-  font-weight: 500;
-  cursor: pointer;
-  font-family: 'DM Sans', sans-serif;
 }
 
 /* ── DOCTOR LABEL & VIEW TOGGLE ── */
@@ -571,14 +482,6 @@
   .admin-tabs {
     display: grid;
     grid-template-columns: 1fr 1fr;
-  }
-  .booking-actions {
-    width: 100%;
-  }
-  .btn-accept, .btn-accept-change-time, .btn-reject {
-    flex: 1;
-    text-align: center;
-    justify-content: center;
   }
 }
 
@@ -1259,11 +1162,6 @@
 .vs-cal-cell:hover {
   transform: translateY(-1px);
   box-shadow: 0 3px 10px rgba(0,0,0,0.07);
-}
-.vs-cal-empty {
-  background: transparent;
-  border-color: transparent;
-  pointer-events: none;
 }
 .vs-cal-other-month {
   opacity: 0.35;

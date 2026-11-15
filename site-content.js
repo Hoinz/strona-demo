@@ -9,7 +9,22 @@
 
   function escapeHtml(str) {
     if (!str) return '';
-    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
+  // A field missing from Firestore keeps the hardcoded HTML instead of blanking it.
+  function has(value) {
+    return value !== undefined && value !== null;
+  }
+
+  function setText(id, value) {
+    var el = document.getElementById(id);
+    if (el && has(value)) el.textContent = value;
+  }
+
+  function setHtml(id, html) {
+    var el = document.getElementById(id);
+    if (el) el.innerHTML = html;
   }
 
   Promise.all([
@@ -33,182 +48,151 @@
     var doctors = [];
     results[7].forEach(function(doc) { doctors.push(Object.assign({ id: doc.id }, doc.data())); });
 
-    var el;
-
     // ── HERO ──
     if (hero) {
-      el = document.getElementById('hero-section-label');
-      if (el) el.textContent = hero.sectionLabel;
-      el = document.getElementById('hero-title');
-      if (el) el.innerHTML = escapeHtml(hero.titleBefore) + '<em>' + escapeHtml(hero.titleEmphasis) + '</em>' + escapeHtml(hero.titleAfter);
-      el = document.getElementById('hero-subtitle');
-      if (el) el.textContent = hero.subtitle;
-      el = document.getElementById('hero-cta-primary');
-      if (el) el.textContent = hero.ctaPrimary;
-      el = document.getElementById('hero-cta-secondary');
-      if (el) el.textContent = hero.ctaSecondary;
+      setText('hero-section-label', hero.sectionLabel);
+      if (has(hero.titleBefore) || has(hero.titleEmphasis) || has(hero.titleAfter)) {
+        setHtml('hero-title', escapeHtml(hero.titleBefore) + '<em>' + escapeHtml(hero.titleEmphasis) + '</em>' + escapeHtml(hero.titleAfter));
+      }
+      setText('hero-subtitle', hero.subtitle);
+      setText('hero-cta-primary', hero.ctaPrimary);
+      setText('hero-cta-secondary', hero.ctaSecondary);
     }
 
     // ── STATS ──
     if (stats && stats.items) {
-      el = document.getElementById('stats-strip');
-      if (el) {
-        var statsHtml = '';
-        stats.items.forEach(function(item) {
-          statsHtml += '<div class="stat-item"><div class="stat-number">' + escapeHtml(item.number) + '</div><div class="stat-label">' + escapeHtml(item.label) + '</div></div>';
-        });
-        el.innerHTML = statsHtml;
-      }
+      var statsHtml = '';
+      stats.items.forEach(function(item) {
+        statsHtml += '<div class="stat-item"><div class="stat-number">' + escapeHtml(item.number) + '</div><div class="stat-label">' + escapeHtml(item.label) + '</div></div>';
+      });
+      setHtml('stats-strip', statsHtml);
     }
 
     // ── SERVICES SECTION HEADER ──
     if (servicesSec) {
-      el = document.getElementById('services-section-label');
-      if (el) el.textContent = servicesSec.sectionLabel;
-      el = document.getElementById('services-title');
-      if (el) el.textContent = servicesSec.title;
-      el = document.getElementById('services-subtitle');
-      if (el) el.textContent = servicesSec.subtitle;
+      setText('services-section-label', servicesSec.sectionLabel);
+      setText('services-title', servicesSec.title);
+      setText('services-subtitle', servicesSec.subtitle);
     }
 
     // ── SERVICES GRID ──
     if (services.length > 0) {
-      el = document.getElementById('services-grid');
-      if (el) {
-        var gridHtml = '';
-        services.forEach(function(svc) {
-          var cardClass = 'service-card' + (svc.active === false ? ' inactive' : '');
-          gridHtml += '<a href="usluga.html?slug=' + encodeURIComponent(svc.slug) + '" class="' + cardClass + '">' +
-            (svc.active === false ? '<div class="inactive-label">Niedostępna</div>' : '') +
-            '<div class="service-icon ' + escapeHtml(svc.iconColorClass) + '">' + escapeHtml(svc.emoji) + '</div>' +
-            '<h3>' + escapeHtml(svc.name) + '</h3>' +
-            '<p>' + escapeHtml(svc.shortDescription) + '</p>' +
-            '</a>';
-        });
-        el.innerHTML = gridHtml;
-      }
+      var gridHtml = '';
+      services.forEach(function(svc) {
+        var cardClass = 'service-card' + (svc.active === false ? ' inactive' : '');
+        gridHtml += '<a href="usluga.html?slug=' + encodeURIComponent(svc.slug) + '" class="' + cardClass + '">' +
+          (svc.active === false ? '<div class="inactive-label">Niedostępna</div>' : '') +
+          '<div class="service-icon ' + escapeHtml(svc.iconColorClass) + '">' + escapeHtml(svc.emoji) + '</div>' +
+          '<h3>' + escapeHtml(svc.name) + '</h3>' +
+          '<p>' + escapeHtml(svc.shortDescription) + '</p>' +
+          '</a>';
+      });
+      setHtml('services-grid', gridHtml);
 
       // Update footer service links
-      var footerCol = document.getElementById('footer-services-col');
-      if (footerCol) {
-        var footerHtml = '<h4>Usługi</h4>';
-        services.slice(0, 5).forEach(function(svc) {
-          footerHtml += '<a href="usluga.html?slug=' + encodeURIComponent(svc.slug) + '">' + escapeHtml(svc.name) + '</a>';
-        });
-        footerCol.innerHTML = footerHtml;
-      }
+      var footerHtml = '<h4>Usługi</h4>';
+      services.slice(0, 5).forEach(function(svc) {
+        footerHtml += '<a href="usluga.html?slug=' + encodeURIComponent(svc.slug) + '">' + escapeHtml(svc.name) + '</a>';
+      });
+      setHtml('footer-services-col', footerHtml);
     }
 
     // ── ABOUT ──
     if (about) {
-      el = document.getElementById('about-section-label');
-      if (el) el.textContent = about.sectionLabel;
-      el = document.getElementById('about-title');
-      if (el) el.innerHTML = escapeHtml(about.title).replace(', ', ',<br>');
-      el = document.getElementById('about-emoji');
-      if (el) el.textContent = about.emoji;
-      el = document.getElementById('about-p1');
-      if (el) el.textContent = about.paragraph1;
-      el = document.getElementById('about-p2');
-      if (el) el.textContent = about.paragraph2;
+      setText('about-section-label', about.sectionLabel);
+      if (has(about.title)) setHtml('about-title', escapeHtml(about.title).replace(', ', ',<br>'));
+      setText('about-emoji', about.emoji);
+      setText('about-p1', about.paragraph1);
+      setText('about-p2', about.paragraph2);
       if (about.values) {
-        el = document.getElementById('about-values');
-        if (el) {
-          var valHtml = '';
-          about.values.forEach(function(v, i) {
-            valHtml += '<div class="value-item"><div class="value-dot vd-' + (i+1) + '"></div><div><strong>' + escapeHtml(v.title) + '</strong><span>' + escapeHtml(v.text) + '</span></div></div>';
-          });
-          el.innerHTML = valHtml;
-        }
+        var valHtml = '';
+        about.values.forEach(function(v, i) {
+          // Only four dot colours (vd-1..vd-4) exist — cycle through them
+          valHtml += '<div class="value-item"><div class="value-dot vd-' + (i % 4 + 1) + '"></div><div><strong>' + escapeHtml(v.title) + '</strong><span>' + escapeHtml(v.text) + '</span></div></div>';
+        });
+        setHtml('about-values', valHtml);
       }
     }
 
     // ── TEAM ──
     if (doctors.length > 0) {
-      el = document.getElementById('team-grid');
-      if (el) {
-        var teamHtml = '';
-        doctors.forEach(function(doc, i) {
-          teamHtml += '<div class="team-member">';
-          if (doc.photoURL) {
-            teamHtml += '<div class="team-avatar ta-' + (i+1) + '"><img src="' + escapeHtml(doc.photoURL) + '" alt="' + escapeHtml(doc.name) + '" style="width:100%;height:100%;object-fit:cover;border-radius:50%"></div>';
-          } else {
-            teamHtml += '<div class="team-avatar ta-' + (i+1) + '">👩‍⚕️</div>';
-          }
-          teamHtml += '<h3>' + escapeHtml(doc.name) + '</h3>';
-          teamHtml += '<p>' + escapeHtml(doc.specialty) + '</p>';
-          if (doc.bio) teamHtml += '<div class="bio">' + escapeHtml(doc.bio) + '</div>';
-          teamHtml += '</div>';
-        });
-        el.innerHTML = teamHtml;
-      }
+      var teamHtml = '';
+      doctors.forEach(function(doc, i) {
+        // Only four avatar gradients (ta-1..ta-4) exist — cycle through them
+        var avatarClass = 'team-avatar ta-' + (i % 4 + 1);
+        teamHtml += '<div class="team-member">';
+        if (doc.photoURL) {
+          teamHtml += '<div class="' + avatarClass + '"><img src="' + escapeHtml(doc.photoURL) + '" alt="' + escapeHtml(doc.name) + '" style="width:100%;height:100%;object-fit:cover;border-radius:50%"></div>';
+        } else {
+          teamHtml += '<div class="' + avatarClass + '">👩‍⚕️</div>';
+        }
+        teamHtml += '<h3>' + escapeHtml(doc.name) + '</h3>';
+        teamHtml += '<p>' + escapeHtml(doc.specialty) + '</p>';
+        if (doc.bio) teamHtml += '<div class="bio">' + escapeHtml(doc.bio) + '</div>';
+        teamHtml += '</div>';
+      });
+      setHtml('team-grid', teamHtml);
     }
 
     // ── TESTIMONIALS ──
     if (testimonials) {
-      el = document.getElementById('testimonials-section-label');
-      if (el) el.textContent = testimonials.sectionLabel;
-      el = document.getElementById('testimonials-title');
-      if (el) el.textContent = testimonials.title;
+      setText('testimonials-section-label', testimonials.sectionLabel);
+      setText('testimonials-title', testimonials.title);
       if (testimonials.items) {
-        el = document.getElementById('testimonials-grid');
-        if (el) {
-          var testHtml = '';
-          testimonials.items.forEach(function(t) {
-            var starsStr = '';
-            for (var s = 0; s < (t.stars || 5); s++) starsStr += '★ ';
-            testHtml += '<div class="testimonial-card">' +
-              '<div class="stars">' + starsStr.trim() + '</div>' +
-              '<blockquote>„' + escapeHtml(t.quote) + '"</blockquote>' +
-              '<div class="testimonial-author">' +
-                '<div class="author-avatar">' + escapeHtml(t.authorEmoji) + '</div>' +
-                '<div><div class="author-name">' + escapeHtml(t.authorName) + '</div>' +
-                '<div class="author-pet">' + escapeHtml(t.authorPet) + '</div></div>' +
-              '</div></div>';
-          });
-          el.innerHTML = testHtml;
-        }
+        var testHtml = '';
+        testimonials.items.forEach(function(t) {
+          var starsStr = '';
+          for (var s = 0; s < (t.stars || 5); s++) starsStr += '★ ';
+          testHtml += '<div class="testimonial-card">' +
+            '<div class="stars">' + starsStr.trim() + '</div>' +
+            '<blockquote>„' + escapeHtml(t.quote) + '"</blockquote>' +
+            '<div class="testimonial-author">' +
+              '<div class="author-avatar">' + escapeHtml(t.authorEmoji) + '</div>' +
+              '<div><div class="author-name">' + escapeHtml(t.authorName) + '</div>' +
+              '<div class="author-pet">' + escapeHtml(t.authorPet) + '</div></div>' +
+            '</div></div>';
+        });
+        setHtml('testimonials-grid', testHtml);
       }
     }
 
     // ── CONTACT ──
     if (contact) {
-      el = document.getElementById('contact-section-label');
-      if (el) el.textContent = contact.sectionLabel;
-      el = document.getElementById('contact-title');
-      if (el) el.textContent = contact.title;
-      el = document.getElementById('contact-subtitle');
-      if (el) el.textContent = contact.subtitle;
-      el = document.getElementById('contact-address');
-      if (el) el.innerHTML = '<strong>' + escapeHtml(contact.address) + '</strong><br>' + escapeHtml(contact.addressCity);
-      el = document.getElementById('contact-phone');
-      if (el) el.innerHTML = '<strong><a href="tel:' + escapeHtml(contact.phone.replace(/\s/g,'')) + '" style="color:inherit;text-decoration:none;">' + escapeHtml(contact.phone) + '</a></strong><br>' + escapeHtml(contact.phoneNote);
-      el = document.getElementById('contact-email');
-      if (el) el.innerHTML = '<strong><a href="mailto:' + escapeHtml(contact.email) + '" style="color:inherit;text-decoration:none;">' + escapeHtml(contact.email) + '</a></strong><br>' + escapeHtml(contact.emailNote);
-      el = document.getElementById('contact-hours');
-      if (el) el.innerHTML = '<strong>' + escapeHtml(contact.hours) + '</strong><br>' + escapeHtml(contact.hoursNote);
-      el = document.getElementById('contact-cta-title');
-      if (el) el.textContent = contact.ctaTitle;
-      el = document.getElementById('contact-cta-text');
-      if (el) el.textContent = contact.ctaText;
-      el = document.getElementById('contact-cta-btn');
-      if (el) el.textContent = contact.ctaButtonText;
+      setText('contact-section-label', contact.sectionLabel);
+      setText('contact-title', contact.title);
+      setText('contact-subtitle', contact.subtitle);
+      if (has(contact.address)) {
+        setHtml('contact-address', '<strong>' + escapeHtml(contact.address) + '</strong><br>' + escapeHtml(contact.addressCity));
+      }
+      if (has(contact.phone)) {
+        var phone = String(contact.phone);
+        setHtml('contact-phone', '<strong><a href="tel:' + escapeHtml(phone.replace(/\s/g,'')) + '" style="color:inherit;text-decoration:none;">' + escapeHtml(phone) + '</a></strong><br>' + escapeHtml(contact.phoneNote));
+      }
+      if (has(contact.email)) {
+        setHtml('contact-email', '<strong><a href="mailto:' + escapeHtml(contact.email) + '" style="color:inherit;text-decoration:none;">' + escapeHtml(contact.email) + '</a></strong><br>' + escapeHtml(contact.emailNote));
+      }
+      if (has(contact.hours)) {
+        setHtml('contact-hours', '<strong>' + escapeHtml(contact.hours) + '</strong><br>' + escapeHtml(contact.hoursNote));
+      }
+      setText('contact-cta-title', contact.ctaTitle);
+      setText('contact-cta-text', contact.ctaText);
+      setText('contact-cta-btn', contact.ctaButtonText);
     }
 
-    // Report success
+    // Report success. Firestore rules only let site editors write here, so for
+    // anonymous visitors this is rejected — swallow that instead of logging an
+    // unhandled rejection on every page view.
     db.collection('siteContent').doc('_health').set({
       lastSuccess: firebase.firestore.FieldValue.serverTimestamp()
-    }, { merge: true });
+    }, { merge: true }).catch(function() {});
 
   }).catch(function(err) {
     // Silent failure — hardcoded content remains visible
     console.warn('Site content load failed:', err);
-    try {
-      db.collection('siteErrors').add({
-        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-        page: 'index',
-        error: err.message || String(err)
-      });
-    } catch(e) {}
+    db.collection('siteErrors').add({
+      timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+      page: 'index',
+      error: err.message || String(err)
+    }).catch(function() {});
   });
 })();

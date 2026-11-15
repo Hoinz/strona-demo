@@ -176,7 +176,7 @@
 
     // Unavailability banner for inactive services — placed after hero so it's visible
     if (isInactive) {
-      html += '<div class="service-unavailable-banner">Ta usługa jest czasowo nie dostępna</div>';
+      html += '<div class="service-unavailable-banner">Ta usługa jest czasowo niedostępna</div>';
     }
 
     // Why section
@@ -225,28 +225,27 @@
       ctaSection.innerHTML =
         '<h2>' + escapeHtml(svc.ctaTitle) + '</h2>' +
         '<p>' + escapeHtml(svc.ctaText) + '</p>' +
-        '<a href="umow-wizyte.html?service=' + encodeURIComponent(svc.slug) + '" class="btn-primary">Umów wizytę →</a>' +
+        '<a href="umow-wizyte.html?service=' + encodeURIComponent(svc.slug || slug) + '" class="btn-primary">Umów wizytę →</a>' +
         '<div class="phone">lub zadzwoń: <a href="tel:+48225557799">+48 22 555 77 99</a></div>';
       mainEl.parentNode.insertBefore(ctaSection, mainEl.nextSibling);
     }
   }
 
   function reportError(msg) {
-    try {
-      db.collection('siteErrors').add({
-        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-        page: 'usluga',
-        error: msg
-      });
-    } catch(e) {}
+    db.collection('siteErrors').add({
+      timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+      page: 'usluga',
+      error: msg
+    }).catch(function() {});
   }
 
+  // Firestore rules only let site editors write here, so for anonymous
+  // visitors this is rejected — swallow that instead of logging an
+  // unhandled rejection on every page view.
   function reportHealth() {
-    try {
-      db.collection('siteContent').doc('_health').set({
-        lastSuccess: firebase.firestore.FieldValue.serverTimestamp()
-      }, { merge: true });
-    } catch(e) {}
+    db.collection('siteContent').doc('_health').set({
+      lastSuccess: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true }).catch(function() {});
   }
 })();
 </script>
