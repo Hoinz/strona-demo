@@ -179,20 +179,14 @@
       setText('contact-cta-btn', contact.ctaButtonText);
     }
 
-    // Report success. Firestore rules only let site editors write here, so for
-    // anonymous visitors this is rejected — swallow that instead of logging an
-    // unhandled rejection on every page view.
-    db.collection('siteContent').doc('_health').set({
-      lastSuccess: firebase.firestore.FieldValue.serverTimestamp()
-    }, { merge: true }).catch(function() {});
-
   }).catch(function(err) {
     // Silent failure — hardcoded content remains visible
     console.warn('Site content load failed:', err);
+    // Firestore rules cap the error text length, so truncate it here
     db.collection('siteErrors').add({
       timestamp: firebase.firestore.FieldValue.serverTimestamp(),
       page: 'index',
-      error: err.message || String(err)
+      error: String((err && err.message) || err).slice(0, 1000)
     }).catch(function() {});
   });
 })();

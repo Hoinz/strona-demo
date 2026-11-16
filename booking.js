@@ -50,7 +50,9 @@
   var doctors = [];
   var unsubscribeSlots = null;
   var unsubscribeSchedule = null;
+  var monthDataGen = 0;        // bumped on every month-listener teardown; stale callbacks compare against it
   var doctorScheduleData = null;
+  var doctorScheduleLoaded = false; // false until the selected doctor's schedule listener answered
   var unsubscribeDoctorSchedule = null;
 
   // ── DOM ──
@@ -106,9 +108,34 @@
     return false;
   }
 
+  // Grid cells (start minutes) occupied by a visit: every SLOT_DURATION cell
+  // overlapping [start, start + duration). Each cell is one lock document in
+  // `slots` — the same contract is used by admin.js.
+  function visitCells(startMins, duration) {
+    var cells = [];
+    var from = Math.floor(startMins / SLOT_DURATION) * SLOT_DURATION;
+    var to = Math.ceil((startMins + duration) / SLOT_DURATION) * SLOT_DURATION;
+    for (var m = from; m < to; m += SLOT_DURATION) cells.push(m);
+    return cells;
+  }
+
+  function slotCellId(doctorId, dateStr, cellMins) {
+    return doctorId + '_' + dateStr + '_' + minsToTime(cellMins);
+  }
+
+  // True once the doctor has ever saved working hours: per-day entries, a
+  // weekly template, or `lastWeek` (the hours last entered in "Ustal grafik",
+  // which survives the pruning of old per-day entries).
+  function hasWorkingHours(sched) {
+    if (!sched) return false;
+    if (sched.lastWeek || sched.defaultWeek || sched.weeklyHours) return true; // lastWeek is null until hours are applied
+    return !!sched.days && Object.keys(sched.days).length > 0;
+  }
+
   // Doctor's config for a date: per-day entry > weekly template (only inside
   // its validity period). Returns undefined when the doctor has nothing set
-  // for that date, in which case clinic hours apply.
+  // for that date: a doctor who never set working hours then gets clinic
+  // hours, one who did is simply not bookable that day.
   function resolveDoctorDay(sched, dayOfWeek, dateStr) {
     if (!sched) return undefined;
     var day = sched.days && dateStr && sched.days[dateStr];
@@ -145,7 +172,7 @@
 
   function isValidPolishMobile(raw) {
     var num = normalizePhone(raw);
-    return num.length === 9 && MOBILE_PREFIXES.indexOf(num.slice(0, 2)) !== -1;
+    return /^\d{9}$/.test(num) && MOBILE_PREFIXES.indexOf(num.slice(0, 2)) !== -1;
   }
 
   // ── LOAD SERVICES FROM FIRESTORE ──
@@ -280,17 +307,28 @@
       servicePickerSection.style.display = '';
       servicePickerSection.querySelectorAll('.doctor-card').forEach(function(c) { c.classList.remove('selected'); });
     }
+    // The calendar is hidden until a service is picked; stop the previous
+    // doctor's month listeners so they cannot write into takenSlots meanwhile
+    teardownMonthListeners();
     // Set up per-doctor schedule listener
     if (unsubscribeDoctorSchedule) { unsubscribeDoctorSchedule(); unsubscribeDoctorSchedule = null; }
     doctorScheduleData = null;
+    doctorScheduleLoaded = false;
     if (window.PawsomeDB) {
+      var reloadCalendar = function() {
+        doctorScheduleLoaded = true;
+        if (selectedService && calendarSection && calendarSection.style.display !== 'none') {
+          loadMonthData();
+        }
+      };
       unsubscribeDoctorSchedule = window.PawsomeDB.collection('doctorSchedules').doc(doctor.id)
         .onSnapshot(function(doc) {
           doctorScheduleData = doc.exists ? doc.data() : null;
-          if (selectedService && calendarSection && calendarSection.style.display !== 'none') {
-            loadMonthData();
-          }
-        }, function() { doctorScheduleData = null; });
+          reloadCalendar();
+        }, function() {
+          doctorScheduleData = null;
+          reloadCalendar();
+        });
     }
 
     // Auto-apply URL service param once
@@ -316,15 +354,22 @@
   }
 
   // ── LOAD DATA FROM FIRESTORE (real-time listeners) ──
+  function teardownMonthListeners() {
+    monthDataGen++;
+    if (unsubscribeSlots) { unsubscribeSlots(); unsubscribeSlots = null; }
+    if (unsubscribeSchedule) { unsubscribeSchedule(); unsubscribeSchedule = null; }
+  }
+
   function loadMonthData() {
     var db = window.PawsomeDB;
 
     // Tear down previous listeners before setting up new ones
-    if (unsubscribeSlots) { unsubscribeSlots(); unsubscribeSlots = null; }
-    if (unsubscribeSchedule) { unsubscribeSchedule(); unsubscribeSchedule = null; }
+    teardownMonthListeners();
 
     if (!db || !selectedDoctor) { renderCalendar(); return; }
 
+    var gen = monthDataGen;
+    var doctorId = selectedDoctor.id;
     var startDate = formatDate(currentYear, currentMonth, 1);
     var lastDay = new Date(currentYear, currentMonth + 1, 0).getDate();
     var endDate = formatDate(currentYear, currentMonth, lastDay);
@@ -336,7 +381,10 @@
     var scheduleReady = false;
 
     function applyData() {
-      if (!slotsReady || !scheduleReady) return;
+      if (gen !== monthDataGen) return; // listeners were replaced (month or doctor change)
+      // Wait for the doctor's own schedule too: rendering without it would
+      // briefly offer clinic hours on days the doctor does not work
+      if (!slotsReady || !scheduleReady || !doctorScheduleLoaded) return;
 
       // Rebuild takenSlots from live slot documents
       var monthTaken = {};
@@ -379,24 +427,39 @@
       }
     }
 
-    // Query by date range only (no composite index needed).
-    // doctorId filtering is done client-side below.
-    unsubscribeSlots = db.collection('slots')
-      .where('date', '>=', startDate)
-      .where('date', '<=', endDate)
-      .onSnapshot(function(snapshot) {
-        slotsCache = [];
-        snapshot.forEach(function(doc) {
-          var d = doc.data();
-          if (d.doctorId === selectedDoctor.id) slotsCache.push(d);
+    // Slots of the selected doctor only, filtered on the server. That query
+    // needs the composite index (doctorId ASC, date ASC); until it is deployed
+    // Firestore rejects it with failed-precondition and we fall back once to
+    // the date-range-only query, filtering by doctor in the browser.
+    function listenSlots(byDoctor) {
+      var query = db.collection('slots');
+      if (byDoctor) query = query.where('doctorId', '==', doctorId);
+      unsubscribeSlots = query
+        .where('date', '>=', startDate)
+        .where('date', '<=', endDate)
+        .onSnapshot(function(snapshot) {
+          if (gen !== monthDataGen) return;
+          slotsCache = [];
+          snapshot.forEach(function(doc) {
+            var d = doc.data();
+            if (d.doctorId === doctorId) slotsCache.push(d);
+          });
+          slotsReady = true;
+          applyData();
+        }, function(err) {
+          // Month or doctor changed in the meantime — never re-attach for the old one
+          if (gen !== monthDataGen) return;
+          if (byDoctor && err && err.code === 'failed-precondition') {
+            console.warn('Slots index missing, falling back to client-side doctor filter');
+            listenSlots(false);
+            return;
+          }
+          console.error('Slots listener failed:', err);
+          slotsReady = true;
+          applyData();
         });
-        slotsReady = true;
-        applyData();
-      }, function(err) {
-        console.error('Slots listener failed:', err);
-        slotsReady = true;
-        applyData();
-      });
+    }
+    listenSlots(true);
 
     unsubscribeSchedule = db.collection('schedule')
       .where(firebase.firestore.FieldPath.documentId(), '>=', startDate)
@@ -503,6 +566,10 @@
 
     var doctorDay = resolveDoctorDay(sched, dayOfWeek, dateStr);
 
+    // A doctor who has set working hours is bookable only on days those hours
+    // cover. The clinic-hours fallback below is for doctors who never set any
+    // (no schedule document, or one holding nothing but time blocks).
+    if (!doctorDay && hasWorkingHours(sched)) return [];
     if (doctorDay && !doctorDay.active) return [];
 
     var hours;
@@ -680,21 +747,30 @@
     var capturedDoctorName = selectedDoctor.name;
     var capturedDuration = SERVICE_DURATIONS[service] || SLOT_DURATION;
 
-    // Use a transaction to prevent double-booking
-    var slotRef = db.collection('slots').doc();
-    var slotId = slotRef.id;
+    // Double-booking protection: the visit claims one lock document per
+    // 10-minute cell, with a deterministic id, so two concurrent bookings of
+    // the same cell collide inside the transaction.
+    var newStart = timeToMins(capturedTime);
+    var newEnd = newStart + capturedDuration;
+    var cells = visitCells(newStart, capturedDuration);
+    var cellRefs = cells.map(function(cellMins) {
+      return db.collection('slots').doc(slotCellId(capturedDoctorId, capturedDate, cellMins));
+    });
+    var appointmentRef = db.collection('appointments').doc();
 
     db.runTransaction(function(transaction) {
-      // Fetch all slots for this date (filter doctor client-side — no composite index needed)
+      // Guard for legacy slot docs (random id, whole-visit duration) and
+      // off-grid visits, which the cell ids cannot catch. A query is not part
+      // of the transaction, but it is re-run on every retry.
+      // (Two equality filters — no composite index needed.)
       return db.collection('slots')
+        .where('doctorId', '==', capturedDoctorId)
         .where('date', '==', capturedDate)
         .get()
         .then(function(snapshot) {
-          var newStart = timeToMins(capturedTime);
-          var newEnd = newStart + capturedDuration;
           snapshot.forEach(function(doc) {
             var d = doc.data();
-            if (d.doctorId !== capturedDoctorId) return;
+            if (d.doctorId !== capturedDoctorId || !d.time) return;
             var existStart = timeToMins(d.time);
             var existEnd = existStart + (d.duration || SLOT_DURATION);
             if (newStart < existEnd && newEnd > existStart) {
@@ -702,16 +778,26 @@
             }
           });
 
-          // Create both docs in the transaction
-          var appointmentRef = db.collection('appointments').doc(slotId);
-          transaction.set(slotRef, {
-            date: capturedDate,
-            time: capturedTime,
-            doctorId: capturedDoctorId,
-            duration: capturedDuration
+          // Transactional part: read every cell first (Firestore requires all
+          // reads before any write)...
+          return Promise.all(cellRefs.map(function(ref) { return transaction.get(ref); }));
+        })
+        .then(function(cellDocs) {
+          for (var i = 0; i < cellDocs.length; i++) {
+            if (cellDocs[i].exists) throw { code: 'slot-taken' };
+          }
+
+          // ...then claim the cells and create the appointment
+          cellRefs.forEach(function(ref, idx) {
+            transaction.set(ref, {
+              date: capturedDate,
+              time: minsToTime(cells[idx]),
+              doctorId: capturedDoctorId,
+              duration: SLOT_DURATION
+            });
           });
           transaction.set(appointmentRef, {
-            slotId: slotId,
+            slotId: cellRefs[0].id,
             date: capturedDate,
             time: capturedTime,
             patientName: patientName,
@@ -730,10 +816,14 @@
     })
     .then(function() {
       showMessage('success', 'Wizyta zarezerwowana!', 'Twoja wizyta oczekuje na potwierdzenie. Skontaktujemy się z Tobą wkrótce.');
-      // Mark the booked range locally so the UI stays accurate until the listener fires
-      if (!takenSlots[capturedDate]) takenSlots[capturedDate] = [];
-      var startMins = timeToMins(capturedTime);
-      takenSlots[capturedDate].push({ start: startMins, end: startMins + capturedDuration });
+      // Mark the booked cells locally so the UI stays accurate until the listener fires
+      if (selectedDoctor && selectedDoctor.id === capturedDoctorId) {
+        if (!takenSlots[capturedDate]) takenSlots[capturedDate] = [];
+        takenSlots[capturedDate].push({
+          start: cells[0],
+          end: cells[cells.length - 1] + SLOT_DURATION
+        });
+      }
       selectedTime = null;
     })
     .catch(function(err) {
@@ -769,8 +859,37 @@
   }
 
   // ── NEXT FREE TERM (exported for homepage) ──
+  // The badge costs four Firestore queries, so the label is kept in
+  // sessionStorage for a few minutes. Storage access can throw (private mode,
+  // blocked site data) — the badge must work without it.
+  var NEXT_TERM_CACHE_KEY = 'pawsomeNextFreeTerm';
+  var NEXT_TERM_CACHE_TTL = 5 * 60 * 1000;
+
+  function readCachedNextTerm() {
+    try {
+      var cached = JSON.parse(window.sessionStorage.getItem(NEXT_TERM_CACHE_KEY));
+      if (!cached || typeof cached.label !== 'string' || !cached.label || typeof cached.ts !== 'number') return null;
+      var age = Date.now() - cached.ts;
+      if (age < 0 || age >= NEXT_TERM_CACHE_TTL) return null;
+      // "Dziś"/"Jutro" labels are relative to the day they were computed on
+      if (new Date(cached.ts).toDateString() !== new Date().toDateString()) return null;
+      return cached.label;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function cacheNextTerm(label) {
+    try {
+      window.sessionStorage.setItem(NEXT_TERM_CACHE_KEY, JSON.stringify({ label: label, ts: Date.now() }));
+    } catch (e) { /* cache is optional */ }
+  }
+
   window.PawsomeBooking = {
     getNextFreeTerm: function(callback) {
+      var cachedLabel = readCachedNextTerm();
+      if (cachedLabel) { callback(cachedLabel); return; }
+
       var db = window.PawsomeDB;
       if (!db) { callback(null); return; }
 
@@ -849,6 +968,7 @@
                     checkDate.getDate() + '.' + String(checkDate.getMonth()+1).padStart(2,'0') +
                     ', ' + time;
           }
+          cacheNextTerm(label);
           callback(label);
           return;
         }

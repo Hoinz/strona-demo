@@ -92,7 +92,6 @@
   </div>
   <div class="footer-bottom">
     <span>&copy; 2026 Pawsome Klinika Weterynaryjna. Wszelkie prawa zastrzeżone.</span>
-    <div class="social-links"><a href="#" class="social-link" aria-label="Facebook">f</a><a href="#" class="social-link" aria-label="Instagram">ig</a><a href="#" class="social-link" aria-label="Twitter">𝕏</a></div>
   </div>
 </footer>
 
@@ -139,7 +138,6 @@
     }
     var svc = doc.data();
     renderService(svc);
-    reportHealth();
   }).catch(function(err) {
     show404();
     reportError('Failed to load service ' + slug + ': ' + err.message);
@@ -232,20 +230,12 @@
   }
 
   function reportError(msg) {
+    // Firestore rules cap the error text length, so truncate it here
     db.collection('siteErrors').add({
       timestamp: firebase.firestore.FieldValue.serverTimestamp(),
       page: 'usluga',
-      error: msg
+      error: String(msg).slice(0, 1000)
     }).catch(function() {});
-  }
-
-  // Firestore rules only let site editors write here, so for anonymous
-  // visitors this is rejected — swallow that instead of logging an
-  // unhandled rejection on every page view.
-  function reportHealth() {
-    db.collection('siteContent').doc('_health').set({
-      lastSuccess: firebase.firestore.FieldValue.serverTimestamp()
-    }, { merge: true }).catch(function() {});
   }
 })();
 </script>

@@ -23,11 +23,13 @@
   var viewMode = 'mine';   // 'mine' | 'all'
   var doctorName = '';
   var canEditWebsite = false;    // from the roles doc — the same source the Firestore rules check
+  var isAdmin = false;           // only admins may write `doctors` and `roles`
   var acceptedById = {};   // id → booking, for the click-to-edit modal
   var doctorScheduleCache = {};  // doctorId → schedule doc data
   var allDoctors = [];           // [{id, name}] for view-schedule selector
 
-  // Clinic opening hours per JS day-of-week — the vertical range of the day timeline
+  // Clinic opening hours per JS day-of-week — the default vertical range of the
+  // day timeline (stretched when a visit falls outside it)
   var CLINIC_HOURS = {
     1: { open: '08:00', close: '20:00' },
     2: { open: '08:00', close: '20:00' },
@@ -75,7 +77,10 @@
             return;
           }
           currentUser = user;
-          canEditWebsite = role === 'admin' || !!roleData.canEditWebsite;
+          isAdmin = role === 'admin';
+          canEditWebsite = isAdmin || !!roleData.canEditWebsite;
+          // The editor is rendered per user (team section is admin-only)
+          resetEditor();
           loginView.style.display = 'none';
           dashboard.classList.add('visible');
           // Reload on every sign-in — a different user may log in without a page reload
@@ -97,6 +102,7 @@
         currentUser = null;
         doctorName = '';
         canEditWebsite = false;
+        isAdmin = false;
         loginView.style.display = '';
         dashboard.classList.remove('visible');
         if (unsubscribePending) { unsubscribePending(); unsubscribePending = null; }
@@ -399,6 +405,16 @@
 
     var openMin = timeToMins(h.open);
     var closeMin = timeToMins(h.close);
+    // Doctors' own schedules may start earlier / end later than the clinic —
+    // stretch the range (to full hours) so every accepted visit is drawn
+    acceptedBookings.forEach(function(b) {
+      var bStart = timeToMins(b.time);
+      if (!b.time || isNaN(bStart)) return;
+      var bEnd = bStart + (b.duration || getServiceDuration(b.service) || 20);
+      openMin = Math.min(openMin, Math.floor(bStart / 60) * 60);
+      closeMin = Math.max(closeMin, Math.ceil(bEnd / 60) * 60);
+    });
+    closeMin = Math.min(closeMin, 24 * 60);
     var totalHeight = Math.round((closeMin - openMin) * PX_PER_MIN);
 
     // Group bookings into columns: one per doctor in "all" view, single column in "mine"
@@ -440,7 +456,7 @@
     // Build one appointment block
     function buildBlock(b, colorIdx, isSingle) {
       var startMin = timeToMins(b.time);
-      if (startMin < openMin || startMin >= closeMin) return '';
+      if (isNaN(startMin) || startMin < openMin || startMin >= closeMin) return '';
       var apptDur = b.duration || getServiceDuration(b.service) || 20;
       var endMin = Math.min(startMin + apptDur, closeMin);
       var topPx = Math.round((startMin - openMin) * PX_PER_MIN);
@@ -541,37 +557,114 @@
   }
 
   // ── ACTIONS ──
-  function confirmAccept(id, slotId, duration) {
-    var db = window.PawsomeDB;
-    var batch = db.batch();
-    batch.update(db.collection('appointments').doc(id), { status: 'accepted', duration: duration });
-    if (slotId) {
-      batch.update(db.collection('slots').doc(slotId), { duration: duration });
-    }
-    return batch.commit();
+  // Slot cells — the same contract as booking.js: the day is a 10-minute grid
+  // and a pending/accepted visit holds one `slots` doc per grid cell that
+  // overlaps [start, start + duration), with the id doctorId_date_HH:MM.
+  var SLOT_CELL_MIN = 10;
+  var SLOT_CELL_ID_RE = /_\d{4}-\d{2}-\d{2}_\d{2}:\d{2}$/;
+  var SLOT_TAKEN_MSG = 'Ten termin jest już zajęty przez inną rezerwację (potwierdzoną lub oczekującą).';
+
+  // Start times ('HH:MM') of the grid cells a visit occupies. Floor/ceil
+  // because staff can set off-grid times such as 09:35.
+  function visitCellTimes(time, duration) {
+    var start = timeToMins(time);
+    var from = Math.floor(start / SLOT_CELL_MIN) * SLOT_CELL_MIN;
+    var to = Math.ceil((start + duration) / SLOT_CELL_MIN) * SLOT_CELL_MIN;
+    var times = [];
+    for (var m = from; m < to; m += SLOT_CELL_MIN) times.push(minsToTime(m));
+    return times;
   }
 
-  function rejectBooking(id, slotId) {
-    var db = window.PawsomeDB;
-    var batch = db.batch();
-    batch.update(db.collection('appointments').doc(id), { status: 'rejected' });
-    if (slotId) batch.delete(db.collection('slots').doc(slotId));
-    return batch.commit();
+  function slotCellId(doctorId, date, cellTime) {
+    return doctorId + '_' + date + '_' + cellTime;
   }
 
-  function restoreBooking(booking, duration) {
+  function saveErrorMessage(err) {
+    return err && err.code === 'slot-taken' ? SLOT_TAKEN_MSG : 'Błąd zapisu — spróbuj ponownie.';
+  }
+
+  // Applies `changes` (any of status / date / time / duration) to a visit and
+  // moves its slot cells in one transaction. Rejects with code 'slot-taken'
+  // when a cell the visit needs is held by another (pending or accepted) visit.
+  function changeVisit(id, changes) {
     var db = window.PawsomeDB;
-    var slotId = booking.slotId || booking.id;
-    var batch = db.batch();
-    batch.update(db.collection('appointments').doc(booking.id), { status: 'accepted', duration: duration });
-    // Slot was deleted on rejection — recreate it with set()
-    batch.set(db.collection('slots').doc(slotId), {
-      date: booking.date,
-      time: booking.time,
-      doctorId: booking.doctorId,
-      duration: duration
+    var apptRef = db.collection('appointments').doc(id);
+    var slots = db.collection('slots');
+
+    return db.runTransaction(function(transaction) {
+      // Read the visit inside the transaction: the modal's copy may be stale
+      // if another staff member has just moved or rejected it.
+      return transaction.get(apptRef).then(function(apptDoc) {
+        if (!apptDoc.exists) throw new Error('appointment-missing');
+        var b = apptDoc.data();
+
+        // Legacy bookings hold ONE slot doc with a random id for the whole
+        // visit. `slotId` cannot be updated (rules), so a cell-shaped one goes
+        // stale after a move and may now be another visit's cell — never
+        // touch it; the visit's cells are always computed instead.
+        var legacyId = b.slotId || id;
+        var legacyRef = SLOT_CELL_ID_RE.test(legacyId) ? null : slots.doc(legacyId);
+
+        return (legacyRef ? transaction.get(legacyRef) : Promise.resolve(null)).then(function(legacyDoc) {
+          // While its legacy doc exists the visit owns no cells yet
+          var hasLegacySlot = !!(legacyDoc && legacyDoc.exists);
+          var doctorId = b.doctorId || '';
+          var curDur = b.duration || getServiceDuration(b.service) || 20;
+          var newStatus = changes.status || b.status;
+          var newDate = changes.date || b.date;
+          var newTime = changes.time || b.time;
+          var newDur = changes.duration || curDur;
+
+          var curIds = (b.status === 'rejected' || hasLegacySlot) ? [] :
+            visitCellTimes(b.time, curDur).map(function(t) { return slotCellId(doctorId, b.date, t); });
+          var newTimes = newStatus === 'rejected' ? [] : visitCellTimes(newTime, newDur);
+          var newIds = newTimes.map(function(t) { return slotCellId(doctorId, newDate, t); });
+
+          var toClaim = newIds.filter(function(cellId) { return curIds.indexOf(cellId) === -1; });
+          return Promise.all(toClaim.map(function(cellId) {
+            return transaction.get(slots.doc(cellId));
+          })).then(function(cellDocs) {
+            for (var i = 0; i < cellDocs.length; i++) {
+              if (cellDocs[i].exists) {
+                var taken = new Error('slot-taken');
+                taken.code = 'slot-taken';
+                throw taken;
+              }
+            }
+
+            // All reads done — release, claim, update
+            curIds.forEach(function(cellId) {
+              if (newIds.indexOf(cellId) === -1) transaction.delete(slots.doc(cellId));
+            });
+            if (hasLegacySlot) transaction.delete(legacyRef);
+            newIds.forEach(function(cellId, idx) {
+              // Cells the visit already holds stay as they are — fewer writes
+              if (curIds.indexOf(cellId) !== -1) return;
+              transaction.set(slots.doc(cellId), {
+                date: newDate,
+                time: newTimes[idx],
+                doctorId: doctorId,
+                duration: SLOT_CELL_MIN
+              });
+            });
+            transaction.update(apptRef, changes);
+          });
+        });
+      });
     });
-    return batch.commit();
+  }
+
+  function confirmAccept(id, duration) {
+    return changeVisit(id, { status: 'accepted', duration: duration });
+  }
+
+  function rejectBooking(id) {
+    return changeVisit(id, { status: 'rejected' });
+  }
+
+  // A rejected visit holds no cells, so this claims them all again
+  function restoreBooking(id, duration) {
+    return changeVisit(id, { status: 'accepted', duration: duration });
   }
 
   // ── REJECTED VISIT MODAL ──
@@ -639,9 +732,9 @@
             fail('Czas wizyty koliduje z wizytą o godz. ' + conflictTime + '. Skróć czas trwania.');
             return;
           }
-          return restoreBooking(booking, durVal).then(closeRejectedModal);
+          return restoreBooking(booking.id, durVal).then(closeRejectedModal);
         })
-        .catch(function() { fail('Błąd zapisu — spróbuj ponownie.'); });
+        .catch(function(err) { fail(saveErrorMessage(err)); });
     });
   }
 
@@ -727,9 +820,9 @@
             fail('Czas wizyty koliduje z wizytą o godz. ' + conflictTime + '. Skróć czas trwania.');
             return;
           }
-          return confirmAccept(booking.id, booking.slotId || booking.id, durVal).then(closePendingModal);
+          return confirmAccept(booking.id, durVal).then(closePendingModal);
         })
-        .catch(function() { fail('Błąd zapisu — spróbuj ponownie.'); });
+        .catch(function(err) { fail(saveErrorMessage(err)); });
     });
 
     modal.querySelector('.pending-btn-reject').addEventListener('click', function() {
@@ -745,8 +838,8 @@
     modal.querySelector('.appt-btn-delete-confirm').addEventListener('click', function() {
       var btn = this;
       btn.disabled = true;
-      rejectBooking(booking.id, booking.slotId || booking.id).then(closePendingModal).catch(function() {
-        pendingErrorEl.textContent = 'Błąd zapisu — spróbuj ponownie.';
+      rejectBooking(booking.id).then(closePendingModal).catch(function(err) {
+        pendingErrorEl.textContent = saveErrorMessage(err);
         pendingErrorEl.style.display = '';
         btn.disabled = false;
       });
@@ -860,8 +953,8 @@
     modal.querySelector('.appt-btn-delete-confirm').addEventListener('click', function() {
       var btn = this;
       btn.disabled = true;
-      rejectBooking(booking.id, booking.slotId || booking.id).then(closeApptModal).catch(function() {
-        showError('Błąd zapisu — spróbuj ponownie.');
+      rejectBooking(booking.id).then(closeApptModal).catch(function(err) {
+        showError(saveErrorMessage(err));
         btn.disabled = false;
       });
     });
@@ -917,13 +1010,13 @@
             fail('Czas wizyty koliduje z wizytą o godz. ' + conflictTime + '. Zmień godzinę lub skróć czas trwania.');
             return;
           }
-          return amendAppt(booking.id, booking.slotId || booking.id, {
+          return amendAppt(booking.id, {
             date: newDate,
             time: newTime,
             duration: newDur
-          });
+          }, true);
         })
-        .catch(function() { fail('Błąd zapisu — spróbuj ponownie.'); });
+        .catch(function(err) { fail(saveErrorMessage(err)); });
     });
 
     modal.querySelector('.appt-entry-form').addEventListener('submit', function(e) {
@@ -931,7 +1024,7 @@
       var form = this;
       var saveBtn = form.querySelector('.appt-btn-save');
       saveBtn.disabled = true;
-      amendAppt(booking.id, null, {
+      amendAppt(booking.id, {
         patientName: form.elements.patientName.value.trim(),
         petName: form.elements.petName.value.trim(),
         phone: form.elements.phone.value.trim(),
@@ -956,12 +1049,13 @@
 
   // Resolves once saved (and closes the modal); rejects on failure so the
   // caller can show the error next to the form that triggered it.
-  function amendAppt(id, slotId, fields) {
-    var db = window.PawsomeDB;
-    var batch = db.batch();
-    batch.update(db.collection('appointments').doc(id), fields);
-    if (slotId) batch.update(db.collection('slots').doc(slotId), { date: fields.date, time: fields.time, duration: fields.duration });
-    return batch.commit().then(closeApptModal);
+  // `movesSlots`: the fields change date/time/duration, so the visit's slot
+  // cells must move with it; patient-data edits touch no slots.
+  function amendAppt(id, fields, movesSlots) {
+    var saved = movesSlots
+      ? changeVisit(id, fields)
+      : window.PawsomeDB.collection('appointments').doc(id).update(fields);
+    return saved.then(closeApptModal);
   }
 
   // ── HELPERS ──
@@ -1120,7 +1214,9 @@
     if (existing) existing.parentNode.removeChild(existing);
 
     var sched = doctorScheduleCache[currentUser.uid] || {};
-    var defaultWeek = sched.defaultWeek || sched.weeklyHours || {};
+    // Prefill only: `lastWeek` is the weekly form as last saved. The hours that
+    // actually apply are the per-day entries in `days`.
+    var defaultWeek = sched.lastWeek || sched.defaultWeek || sched.weeklyHours || {};
     // Copy — edits must not leak into the cached schedule if the save is cancelled or rejected
     var days = Object.assign({}, sched.days);
     var busyBlocks = (sched.busyBlocks || []).slice();
@@ -1203,6 +1299,7 @@
               '<div><label>Do</label><input type="date" id="sched-valid-until" value="' + escapeAttr(validUntil) + '"></div>' +
               '<button type="button" id="sched-clear-period">Wyczy\u015b\u0107</button>' +
             '</div>' +
+            '<div class="sched-period-hint">Godziny pracy zostan\u0105 zapisane dla ka\u017cdego dnia w wybranym okresie.</div>' +
           '</div>' +
           '<div class="sched-section">' +
             '<div class="sched-section-title">Godziny pracy i przerwy</div>' +
@@ -1329,7 +1426,8 @@
       modal.querySelector('#sched-block-end').value = '';
     });
 
-    modal.querySelector('.sched-btn-save').addEventListener('click', function() {
+    // The weekly rows as they stand in the form ('0'..'6' → day config)
+    function readWeekRows() {
       var wh = {};
       modal.querySelectorAll('.sched-day-row').forEach(function(row) {
         var dow = row.dataset.dow;
@@ -1338,27 +1436,70 @@
           active: true,
           start: row.querySelector('.sched-time-start').value || '08:00',
           end: row.querySelector('.sched-time-end').value || '18:00',
-          pauses: weekPauses[parseInt(dow)].slice()
+          pauses: weekPauses[parseInt(dow)].map(function(p) { return { start: p.start, end: p.end }; })
         } : { active: false };
       });
+      return wh;
+    }
+    // What the form was prefilled with — to tell "hours edited" from "hours left alone"
+    var prefilledWeekJson = JSON.stringify(readWeekRows());
+
+    modal.querySelector('.sched-btn-save').addEventListener('click', function() {
+      var saveErrorEl = modal.querySelector('.sched-save-error');
+      function invalid(msg) {
+        saveErrorEl.textContent = msg;
+        saveErrorEl.style.display = '';
+      }
+
+      var wh = readWeekRows();
+      var weekChanged = JSON.stringify(wh) !== prefilledWeekJson;
 
       var vFrom = modal.querySelector('#sched-valid-from').value || null;
       var vUntil = modal.querySelector('#sched-valid-until').value || null;
+      var hasPeriod = !!(vFrom && vUntil);
+
+      if (!!vFrom !== !!vUntil) { invalid('Podaj obie daty okresu (od i do).'); return; }
+
+      var cur = null, end = null;
+      if (hasPeriod) {
+        var parts = vFrom.split('-');
+        cur = new Date(+parts[0], +parts[1] - 1, +parts[2]);
+        var endParts = vUntil.split('-');
+        end = new Date(+endParts[0], +endParts[1] - 1, +endParts[2]);
+        if (cur > end) { invalid('Data „do” nie może być wcześniejsza niż „od”.'); return; }
+        // Inclusive day count (rounded: a DST change makes a day 23 or 25 hours)
+        if (Math.round((end - cur) / 86400000) + 1 > 366) { invalid('Okres może obejmować najwyżej rok.'); return; }
+      }
+
+      if (hasPeriod || weekChanged) {
+        var fullDayNames = ['niedziela', 'poniedziałek', 'wtorek', 'środa', 'czwartek', 'piątek', 'sobota'];
+        for (var i = 0; i < dayOrder.length; i++) {
+          var cfg = wh[String(dayOrder[i])];
+          if (cfg.active && cfg.end <= cfg.start) {
+            invalid('Godzina zakończenia pracy musi być późniejsza niż rozpoczęcia (' + fullDayNames[dayOrder[i]] + ').');
+            return;
+          }
+        }
+      }
+
+      if (!hasPeriod && weekChanged) {
+        invalid('Wybierz okres (od–do), w którym mają obowiązywać te godziny. Bez okresu można zapisać tylko blokady czasu.');
+        return;
+      }
+
+      // Fresh copy on every attempt — a save refused because of a conflict
+      // must not leave its expansion behind for the next attempt
+      var newDays = Object.assign({}, days);
 
       // Expand weekly template into per-day entries for the specified date range
-      if (vFrom && vUntil) {
-        var parts = vFrom.split('-');
-        var cur = new Date(+parts[0], +parts[1] - 1, +parts[2]);
-        var endParts = vUntil.split('-');
-        var end = new Date(+endParts[0], +endParts[1] - 1, +endParts[2]);
-
+      if (hasPeriod) {
         while (cur <= end) {
           var dateStr = cur.getFullYear() + '-' +
             String(cur.getMonth() + 1).padStart(2, '0') + '-' +
             String(cur.getDate()).padStart(2, '0');
           var dow = String(cur.getDay());
           var dayConfig = wh[dow];
-          days[dateStr] = dayConfig.active
+          newDays[dateStr] = dayConfig.active
             ? { active: true, start: dayConfig.start, end: dayConfig.end,
                 pauses: dayConfig.pauses.map(function(p) { return { start: p.start, end: p.end }; }) }
             : { active: false };
@@ -1372,16 +1513,22 @@
       var pruneDateStr = pruneDate.getFullYear() + '-' +
         String(pruneDate.getMonth() + 1).padStart(2, '0') + '-' +
         String(pruneDate.getDate()).padStart(2, '0');
-      Object.keys(days).forEach(function(key) {
-        if (key < pruneDateStr) delete days[key];
+      Object.keys(newDays).forEach(function(key) {
+        if (key < pruneDateStr) delete newDays[key];
       });
 
       saveSchedule({
-        defaultWeek: null,
-        validFrom: null,
-        validUntil: null,
+        // Applying hours to a period makes the per-day entries the source of
+        // truth, so an old weekly template is dropped. A blocks-only save must
+        // leave whatever hours the doctor already has untouched.
+        defaultWeek: hasPeriod ? null : (sched.defaultWeek || sched.weeklyHours || null),
+        validFrom: hasPeriod ? null : (sched.validFrom || null),
+        validUntil: hasPeriod ? null : (sched.validUntil || null),
+        // The hours last applied: prefills this form next time, and tells the
+        // booking page that this doctor keeps a schedule (see booking.js)
+        lastWeek: hasPeriod ? wh : (sched.lastWeek || null),
         busyBlocks: busyBlocks.slice(),
-        days: days
+        days: newDays
       }, modal);
     });
   }
@@ -1933,6 +2080,23 @@
     });
   });
 
+  // Called on every sign-in: drop the previous user's editor (it re-renders
+  // for the new user on first open) and go back to the bookings tab.
+  function resetEditor() {
+    editorLoaded = false;
+    editorData = {};
+    var container = document.getElementById('editor-container');
+    if (container) container.innerHTML = '';
+    document.querySelectorAll('.editor-modal-overlay').forEach(function(el) {
+      if (el.parentNode) el.parentNode.removeChild(el);
+    });
+    mainTabs.forEach(function(t) {
+      t.classList.toggle('active', t.dataset.mainTab === 'bookings');
+    });
+    viewBookings.style.display = '';
+    viewEditor.style.display = 'none';
+  }
+
   // ══════════════════════════════════════════════════════════
   // ── CONTENT HEALTH MONITOR ──
   // ══════════════════════════════════════════════════════════
@@ -1942,44 +2106,24 @@
     var banner = document.getElementById('content-health-banner');
     if (!banner) return;
 
-    var warnings = [];
     var cutoff = new Date();
     cutoff.setHours(cutoff.getHours() - 24);
 
-    Promise.all([
-      db.collection('siteErrors').where('timestamp', '>', cutoff).get(),
-      db.collection('siteContent').doc('_health').get()
-    ]).then(function(results) {
-      var errorSnap = results[0];
-      var healthDoc = results[1];
-
-      if (!errorSnap.empty) {
-        var errCount = errorSnap.size;
-        var lastErr = null;
-        errorSnap.forEach(function(doc) {
-          var d = doc.data();
-          var ts = d.timestamp && d.timestamp.toDate();
-          if (ts && (!lastErr || ts > lastErr)) lastErr = ts;
-        });
-        warnings.push('<strong>Uwaga:</strong> wykryto ' + errCount + ' problem' + (errCount === 1 ? '' : errCount < 5 ? 'y' : 'ów') + ' z ładowaniem treści strony w ostatnich 24h.' + (lastErr ? ' Ostatni: ' + lastErr.toLocaleString('pl-PL') : ''));
+    db.collection('siteErrors').where('timestamp', '>', cutoff).get().then(function(errorSnap) {
+      if (errorSnap.empty) {
+        banner.innerHTML = '';
+        banner.style.display = 'none';
+        return;
       }
-
-      if (healthDoc.exists) {
-        var health = healthDoc.data();
-        if (health.lastSuccess) {
-          var last = health.lastSuccess.toDate();
-          if (last < cutoff) {
-            warnings.push('<strong>Uwaga:</strong> treść strony nie była pomyślnie ładowana od ponad 24h (ostatnio: ' + last.toLocaleString('pl-PL') + ').');
-          }
-        }
-      } else {
-        warnings.push('<strong>Uwaga:</strong> brak danych o ładowaniu treści strony — upewnij się, że migracja została wykonana.');
-      }
-
-      if (warnings.length > 0) {
-        banner.innerHTML = warnings.join('<br>');
-        banner.style.display = '';
-      }
+      var errCount = errorSnap.size;
+      var lastErr = null;
+      errorSnap.forEach(function(doc) {
+        var d = doc.data();
+        var ts = d.timestamp && d.timestamp.toDate();
+        if (ts && (!lastErr || ts > lastErr)) lastErr = ts;
+      });
+      banner.innerHTML = '<strong>Uwaga:</strong> wykryto ' + errCount + ' problem' + (errCount === 1 ? '' : errCount < 5 ? 'y' : 'ów') + ' z ładowaniem treści strony w ostatnich 24h.' + (lastErr ? ' Ostatni: ' + lastErr.toLocaleString('pl-PL') : '');
+      banner.style.display = '';
     }).catch(function() {});
   }
 
@@ -1987,6 +2131,7 @@
   // ── EDITOR ──
   // ══════════════════════════════════════════════════════════
   var editorData = {};
+  var editorDelegatesWired = false;
 
   function loadEditorContent() {
     var db = window.PawsomeDB;
@@ -2093,16 +2238,18 @@
         saveBtn('about');
     });
 
-    // ── Team ──
-    html += editorSection('Zespół', function() {
-      var out = '<div id="doctors-list">';
-      editorData.doctors.forEach(function(doc) {
-        out += listItem(doc.name, doc.specialty || '', 'doctor', doc._id);
+    // ── Team ── (admins only: rules let only admins write `doctors` and `roles`)
+    if (isAdmin) {
+      html += editorSection('Zespół', function() {
+        var out = '<div id="doctors-list">';
+        editorData.doctors.forEach(function(doc) {
+          out += listItem(doc.name, doc.specialty || '', 'doctor', doc._id);
+        });
+        out += '</div>';
+        out += addBtn('Dodaj lekarza do strony', 'doctor');
+        return out;
       });
-      out += '</div>';
-      out += addBtn('Dodaj lekarza do strony', 'doctor');
-      return out;
-    });
+    }
 
     // ── Testimonials ──
     html += editorSection('Opinie', function() {
@@ -2229,6 +2376,11 @@
         else if (type === 'testimonial') { openTestimonialModal(null); }
       });
     });
+
+    // The delegated listeners below sit on the container itself, which
+    // survives a re-render (new sign-in) — attach them only once.
+    if (editorDelegatesWired) return;
+    editorDelegatesWired = true;
 
     // Remove dynamic items
     container.addEventListener('click', function(e) {
@@ -2364,34 +2516,74 @@
     if (!confirm('Na pewno usunąć?')) return;
     var db = window.PawsomeDB;
 
+    function deleteFailed(e) {
+      alert('Błąd usuwania: ' + ((e && e.message) || 'spróbuj ponownie.'));
+    }
+
     if (type === 'service') {
       db.collection('services').doc(id).delete().then(function() {
         editorData.services = editorData.services.filter(function(s) { return s._id !== id; });
         refreshList('services-list', editorData.services, 'service', function(s) { return s.emoji + ' ' + s.name; }, function(s) { return s.active ? 'Aktywna' : 'Nieaktywna'; });
-      });
+      }).catch(deleteFailed);
     } else if (type === 'doctor') {
-      // Delete doctor doc + schedule + role in parallel
-      var deletes = [
-        db.collection('doctors').doc(id).delete(),
-        db.collection('doctorSchedules').doc(id).delete().catch(function() {}),
-        db.collection('roles').doc(id).delete().catch(function() {})
-      ];
-      Promise.all(deletes).then(function() {
-        editorData.doctors = editorData.doctors.filter(function(d) { return d._id !== id; });
-        refreshList('doctors-list', editorData.doctors, 'doctor', function(d) { return d.name; }, function(d) { return d.specialty || ''; });
-        // Remove from allDoctors so timeline updates
-        allDoctors = allDoctors.filter(function(d) { return d.id !== id; });
-        delete doctorScheduleCache[id];
-        // Re-render timeline to reflect removed doctor
-        refreshDisplay(datePicker.value);
-      });
+      // Deleting the role is what revokes panel access, and the rules need the
+      // caller's own admin role for the remaining deletes
+      if (currentUser && id === currentUser.uid) {
+        alert('Nie możesz usunąć własnego profilu — utraciłbyś dostęp do panelu.');
+        return;
+      }
+      // Visits and their slot cells would be orphaned — refuse while the doctor
+      // still has upcoming ones. Single-field filter: no composite index needed.
+      db.collection('appointments').where('doctorId', '==', id).get().then(function(snap) {
+        var todayStr = formatDateInput(new Date());
+        var upcoming = 0;
+        snap.forEach(function(apptDoc) {
+          var a = apptDoc.data();
+          if ((a.status === 'pending' || a.status === 'accepted') && (a.date || '') >= todayStr) upcoming++;
+        });
+        if (upcoming > 0) {
+          alert(upcomingVisitsMessage(upcoming));
+          return;
+        }
+        // Role first, so access is gone even if a later step fails
+        return db.collection('roles').doc(id).delete().then(function() {
+          return db.collection('doctorSchedules').doc(id).delete();
+        }).then(function() {
+          return db.collection('doctors').doc(id).delete();
+        }).then(function() {
+          editorData.doctors = editorData.doctors.filter(function(d) { return d._id !== id; });
+          refreshList('doctors-list', editorData.doctors, 'doctor', function(d) { return d.name; }, function(d) { return d.specialty || ''; });
+          // Remove from allDoctors so timeline updates
+          allDoctors = allDoctors.filter(function(d) { return d.id !== id; });
+          delete doctorScheduleCache[id];
+          // Re-render timeline to reflect removed doctor
+          refreshDisplay(datePicker.value);
+          alert('Lekarz został usunięty. Jego konto logowania można usunąć tylko w konsoli Firebase (Authentication) — bez roli nie zaloguje się już do panelu.');
+        });
+      }).catch(deleteFailed);
     } else if (type === 'testimonial') {
       var idx = parseInt(id);
-      editorData.testimonials.items.splice(idx, 1);
+      var removed = editorData.testimonials.items.splice(idx, 1)[0];
       db.collection('siteContent').doc('testimonials').set(editorData.testimonials).then(function() {
         refreshTestimonialsList();
+      }).catch(function(e) {
+        // Not saved — put the opinion back so the list matches the database
+        editorData.testimonials.items.splice(idx, 0, removed);
+        deleteFailed(e);
       });
     }
+  }
+
+  // Polish plural forms: 1 wizytę, 2–4 wizyty, 5+ wizyt (12–14 → wizyt)
+  function upcomingVisitsMessage(n) {
+    var last = n % 10, lastTwo = n % 100;
+    if (n === 1) {
+      return 'Ten lekarz ma 1 nadchodzącą wizytę (oczekującą lub potwierdzoną). Odrzuć ją lub przenieś przed usunięciem lekarza.';
+    }
+    if (last >= 2 && last <= 4 && (lastTwo < 12 || lastTwo > 14)) {
+      return 'Ten lekarz ma ' + n + ' nadchodzące wizyty (oczekujące lub potwierdzone). Odrzuć je lub przenieś przed usunięciem lekarza.';
+    }
+    return 'Ten lekarz ma ' + n + ' nadchodzących wizyt (oczekujących lub potwierdzonych). Odrzuć je lub przenieś przed usunięciem lekarza.';
   }
 
   function refreshList(listId, data, type, titleFn, subtitleFn) {
@@ -2658,8 +2850,8 @@
       displayOrder: editorData.doctors.length + 1, showOnWebsite: true,
       email: '', canEditWebsite: false
     };
-    // Backward compat: existing doctors without canEditWebsite field get true
-    var docCanEdit = (!isNew && d.canEditWebsite === undefined) ? true : !!d.canEditWebsite;
+    // Only an explicit true counts — the rules treat a missing flag as "no"
+    var docCanEdit = d.canEditWebsite === true;
 
     var m = createModalOverlay();
     var html = '<button class="editor-modal-close">&times;</button>';
@@ -2727,6 +2919,8 @@
       var self = this;
       var email = document.getElementById('ed-doc-email').value.trim();
       var photoFile = photoInput.files && photoInput.files[0];
+      // Set once a login account has been created: how the doctor gets a password
+      var accountNote = '';
 
       function saveDoc(docId, photoURL) {
         var data = {
@@ -2763,8 +2957,9 @@
           // Re-render timeline to reflect updated doctor list
           refreshDisplay(datePicker.value);
           m.close();
+          if (accountNote) alert(accountNote);
         }).catch(function(e) {
-          alert('Błąd: ' + e.message);
+          alert('Błąd: ' + e.message + (accountNote ? '\n\n' + accountNote : ''));
           self.disabled = false;
         });
       }
@@ -2777,7 +2972,7 @@
           }).then(function(url) {
             saveDoc(docId, url);
           }).catch(function(e) {
-            alert('Błąd uploadu zdjęcia: ' + e.message);
+            alert('Błąd uploadu zdjęcia: ' + e.message + (accountNote ? '\n\n' + accountNote : ''));
             self.disabled = false;
           });
         } else {
@@ -2788,7 +2983,15 @@
       if (isNew && email) {
         // New doctor with email → create Firebase Auth account
         createDoctorAuthAccount(email).then(function(uid) {
-          uploadAndSave(uid);
+          // The account has a random password nobody knows — send a link to set
+          // one (best effort; the login page offers the same reset).
+          return window.PawsomeAuth.sendPasswordResetEmail(email).then(function() {
+            accountNote = 'Konto lekarza zostało utworzone. Link do ustawienia hasła wysłano na adres ' + email + '.';
+          }, function() {
+            accountNote = 'Konto lekarza zostało utworzone, ale nie udało się wysłać linku do ustawienia hasła. Lekarz powinien użyć opcji „Zapomniałeś hasła?” na stronie logowania (adres: ' + email + ').';
+          }).then(function() {
+            uploadAndSave(uid);
+          });
         }).catch(function(err) {
           if (err.code === 'auth/email-already-in-use') {
             alert('To konto email już istnieje w systemie');

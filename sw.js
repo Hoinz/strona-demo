@@ -7,7 +7,7 @@
 const CACHE = 'pawsome-v5';
 const ASSETS = ['./', 'index.html', 'usluga.html', 'umow-wizyte.html', 'shared.css', 'booking.css', 'booking.js', 'site-content.js', 'firebase-config.js', 'logo.png', 'fonts/dmsans-latin.woff2', 'fonts/dmsans-latin-ext.woff2', 'fonts/playfair-latin.woff2', 'fonts/playfair-latin-ext.woff2', 'fonts/playfair-italic-latin.woff2', 'fonts/playfair-italic-latin-ext.woff2'];
 const CACHE_FIRST = /\.(woff2|png|jpe?g|webp|svg|ico)$/;
-const NOT_CACHED = /\/(admin|migrate)\.(html|js|css)$/;
+const NOT_CACHED = /\/admin\.(html|js|css)$/;
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));

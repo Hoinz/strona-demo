@@ -809,6 +809,11 @@
   transition: background 0.2s, border-color 0.2s;
 }
 #sched-clear-period:hover { background: #f0f0f0; border-color: #bbb; }
+.sched-period-hint {
+  margin-top: 0.5rem;
+  font-size: 0.78rem;
+  color: #888;
+}
 .sched-day-row {
   display: flex;
   flex-direction: column;
