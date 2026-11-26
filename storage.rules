@@ -1,13 +1,9 @@
 rules_version = '2';
+// The site stores no files; doctor photos were removed with the website editor.
 service firebase.storage {
   match /b/{bucket}/o {
-    match /doctors/{fileName} {
-      allow read: if true;
-      // Roles live in Firestore (roles/{uid}.role) — deploying this asks to grant Storage access to Firestore.
-      allow write: if request.auth != null
-                   && firestore.get(/databases/(default)/documents/roles/$(request.auth.uid)).data.role == 'admin'
-                   && request.resource.size < 5 * 1024 * 1024
-                   && request.resource.contentType.matches('image/.*');
+    match /{allPaths=**} {
+      allow read, write: if false;
     }
   }
 }

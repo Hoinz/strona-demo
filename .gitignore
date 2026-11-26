@@ -1,2 +1,4 @@
 .claude/
 Project_Brief_Vet_Platform.pdf.md
+node_modules/
+*-debug.log

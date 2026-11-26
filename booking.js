@@ -14,24 +14,9 @@
   };
   var SLOT_DURATION = 10; // minutes
 
-  var SERVICES = {
-    'badania-profilaktyczne': 'Badania profilaktyczne',
-    'szczepienia': 'Szczepienia',
-    'stomatologia': 'Stomatologia',
-    'chirurgia': 'Chirurgia',
-    'diagnostyka': 'Diagnostyka',
-    'plany-zywieniowe': 'Plany żywieniowe'
-  };
-
-  // Default visit duration in minutes per service
-  var SERVICE_DURATIONS = {
-    'badania-profilaktyczne': 20,
-    'szczepienia': 20,
-    'stomatologia': 60,
-    'chirurgia': 90,
-    'diagnostyka': 30,
-    'plany-zywieniowe': 30
-  };
+  // Bookable services from services.js: slug → name, slug → minutes
+  var SERVICES = {};
+  var SERVICE_DURATIONS = {};
 
   var MONTH_NAMES = [
     'Styczeń','Luty','Marzec','Kwiecień','Maj','Czerwiec',
@@ -173,27 +158,6 @@
   function isValidPolishMobile(raw) {
     var num = normalizePhone(raw);
     return /^\d{9}$/.test(num) && MOBILE_PREFIXES.indexOf(num.slice(0, 2)) !== -1;
-  }
-
-  // ── LOAD SERVICES FROM FIRESTORE ──
-  function loadServicesFromFirestore(callback) {
-    var db = window.PawsomeDB;
-    if (!db) { callback(); return; }
-    db.collection('services').where('active', '==', true).orderBy('displayOrder').get()
-      .then(function(snapshot) {
-        if (snapshot.empty) { callback(); return; }
-        var newServices = {};
-        var newDurations = {};
-        snapshot.forEach(function(doc) {
-          var d = doc.data();
-          newServices[d.slug] = d.name;
-          newDurations[d.slug] = d.duration || 30;
-        });
-        SERVICES = newServices;
-        SERVICE_DURATIONS = newDurations;
-        callback();
-      })
-      .catch(function() { callback(); });
   }
 
   function renderServicePicker() {
@@ -793,7 +757,8 @@
               date: capturedDate,
               time: minsToTime(cells[idx]),
               doctorId: capturedDoctorId,
-              duration: SLOT_DURATION
+              duration: SLOT_DURATION,
+              appointmentId: appointmentRef.id
             });
           });
           transaction.set(appointmentRef, {
@@ -981,8 +946,11 @@
 
   // Start only on the booking page
   if (calendarDays) {
-    loadServicesFromFirestore(function() {
-      init();
+    (window.PawsomeServices || []).forEach(function(svc) {
+      if (!svc.active) return;
+      SERVICES[svc.slug] = svc.name;
+      SERVICE_DURATIONS[svc.slug] = svc.duration;
     });
+    init();
   }
 })();

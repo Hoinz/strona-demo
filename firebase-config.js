@@ -14,4 +14,3 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 window.PawsomeDB = firebase.firestore();
 window.PawsomeAuth = typeof firebase.auth === 'function' ? firebase.auth() : null;
-window.PawsomeStorage = typeof firebase.storage === 'function' ? firebase.storage() : null;

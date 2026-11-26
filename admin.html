@@ -70,13 +70,10 @@
       </div>
     </div>
 
-    <!-- Health warning banner -->
-    <div id="content-health-banner" class="content-health-banner" style="display:none"></div>
-
     <!-- Main tab bar -->
     <div class="admin-main-tabs">
       <button class="admin-main-tab active" data-main-tab="bookings" id="main-tab-bookings">Rezerwacje</button>
-      <button class="admin-main-tab" data-main-tab="editor" id="main-tab-editor">Edytuj stronę</button>
+      <button class="admin-main-tab" data-main-tab="doctors" id="main-tab-doctors" style="display:none">Lekarze</button>
     </div>
 
     <!-- Bookings View -->
@@ -105,11 +102,9 @@
       <div class="timeline" id="timeline"></div>
     </div>
 
-    <!-- Editor View -->
-    <div id="view-editor" style="display:none">
-      <div id="editor-container">
-        <div style="text-align:center;padding:2rem;color:#888">Ładowanie edytora...</div>
-      </div>
+    <!-- Doctors View (admins only) -->
+    <div id="view-doctors" style="display:none">
+      <div id="doctors-container"></div>
     </div>
 
   </div>
@@ -137,8 +132,8 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
 <script src="firebase-config.js"></script>
+<script src="services.js"></script>
 <script src="admin.js"></script>
 </body>
 </html>
