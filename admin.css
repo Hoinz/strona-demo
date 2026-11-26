@@ -1,4 +1,3 @@
-/* ── ADMIN DASHBOARD STYLES ── */
 
 .admin-page {
   padding: 8rem 4rem 4rem;
@@ -7,7 +6,6 @@
   min-height: 100vh;
 }
 
-/* ── LOGIN ── */
 .admin-login {
   max-width: 400px;
   margin: 0 auto;
@@ -88,7 +86,6 @@
   text-decoration: underline;
 }
 
-/* ── DASHBOARD ── */
 .admin-dashboard {
   display: none;
 }
@@ -121,7 +118,6 @@
   color: var(--cream);
 }
 
-/* ── DATE PICKER ── */
 .admin-date-picker {
   display: flex;
   align-items: center;
@@ -146,7 +142,6 @@
   border-color: var(--terra);
 }
 
-/* ── TABS ── */
 .admin-tabs {
   display: flex;
   gap: 0.5rem;
@@ -190,7 +185,6 @@
   color: var(--charcoal);
 }
 
-/* ── BOOKING CARDS ── */
 .bookings-list {
   display: flex;
   flex-direction: column;
@@ -271,14 +265,12 @@
   font-size: 0.95rem;
 }
 
-/* ── SCHEDULE VISUAL TIMELINE ── */
 .timeline { margin-top: 0; }
 
 .schedule-wrap {
   margin-top: 3rem;
   border-top: 1px solid rgba(0,0,0,0.06);
   padding-top: 2rem;
-  /* Break out of the .admin-page max-width container to use full viewport */
   width: 100vw;
   position: relative;
   left: 50%;
@@ -338,7 +330,6 @@
   display: flex;
   flex-direction: column;
 }
-/* Header row sits above the body row so the time axis aligns with col bodies */
 .sch-header-row {
   display: flex;
   margin-bottom: 0;
@@ -373,7 +364,6 @@
   border: 1px solid rgba(0,0,0,0.07);
   border-radius: 8px;
 }
-/* Combined view: body connects visually to header above */
 .sch-col-body-multi {
   border-radius: 0 0 8px 8px;
   border-top: none;
@@ -434,9 +424,7 @@
   margin-top: 2px;
   overflow: hidden;
 }
-/* Mine view (single column) */
 .sch-color-mine { background: rgba(168,181,160,0.45); color: #2d4a28; border: 1px solid rgba(168,181,160,0.75); }
-/* Combined view palette */
 .sch-color-0 { background: rgba(168,181,160,0.45); color: #2d4a28; border: 1px solid rgba(168,181,160,0.75); }
 .sch-color-1 { background: rgba(193,156,110,0.32); color: #5a3010; border: 1px solid rgba(193,156,110,0.6); }
 .sch-color-2 { background: rgba(120,160,210,0.32); color: #1a3060; border: 1px solid rgba(120,160,210,0.6); }
@@ -444,7 +432,6 @@
 .sch-color-4 { background: rgba(190,190,120,0.32); color: #3a3a08; border: 1px solid rgba(190,190,120,0.6); }
 .sch-color-5 { background: rgba(120,190,190,0.35); color: #0a3838; border: 1px solid rgba(120,190,190,0.6); }
 
-/* ── DURATION INPUT ── */
 .duration-input {
   width: 72px;
   padding: 0.4rem 0.6rem;
@@ -455,14 +442,12 @@
   background: var(--cream);
 }
 
-/* ── DOCTOR LABEL & VIEW TOGGLE ── */
 .doctor-label { font-size: 0.85rem; color: var(--warm-brown); font-weight: 500; display: block; margin-top: 0.2rem; }
 .admin-view-toggle { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
 .view-toggle-btn { padding: 0.55rem 1.3rem; border-radius: 50px; border: 1.5px solid rgba(0,0,0,0.12); background: transparent; font-size: 0.85rem; font-weight: 500; cursor: pointer; transition: all 0.3s ease; font-family: 'DM Sans', sans-serif; color: var(--charcoal); }
 .view-toggle-btn.active { background: var(--terra); color: var(--cream); border-color: var(--terra); }
 .view-toggle-btn:hover:not(.active) { background: var(--blush); border-color: var(--warm-brown); }
 
-/* ── RESPONSIVE ── */
 @media (max-width: 768px) {
   .admin-page {
     padding: 7rem 1.5rem 2rem;
@@ -485,7 +470,6 @@
   }
 }
 
-/* ── APPOINTMENT EDIT MODAL ── */
 .appt-modal-overlay {
   position: fixed;
   inset: 0;
@@ -614,7 +598,6 @@
   cursor: pointer;
   font-family: 'DM Sans', sans-serif;
 }
-/* ── PENDING MODAL EXTRAS ── */
 .pending-duration-row {
   display: flex;
   align-items: center;
@@ -729,7 +712,6 @@
   .appt-btn-amend-entry { flex: 1 1 calc(50% - 0.35rem); }
 }
 
-/* ── SCHEDULE BUTTON & MODAL ── */
 .admin-header-actions {
   display: flex;
   flex-direction: row;
@@ -753,7 +735,6 @@
   color: var(--cream);
 }
 .sched-modal-overlay {
-  /* Inherits .appt-modal-overlay base — just wider modal */
 }
 .sched-modal {
   max-width: 560px !important;
@@ -1023,7 +1004,6 @@
 .sched-time-inputs input[type="time"]:focus { outline: none; border-color: var(--terra); }
 .sched-time-inputs span { font-size: 0.85rem; color: #aaa; }
 
-/* ── VIEW SCHEDULE MODAL ── */
 .btn-view-schedule {
   background: transparent;
   border: 1.5px solid var(--terra);
@@ -1040,10 +1020,8 @@
   background: var(--terra);
   color: var(--cream);
 }
-/* ── SCHEDULE PREVIEW MODAL ── */
 .view-sched-modal { max-width: 680px !important; }
 
-/* ── TOOLBAR ── */
 .vs-toolbar {
   display: flex;
   align-items: center;
@@ -1077,7 +1055,6 @@
 }
 .view-sched-select:focus { outline: none; border-color: var(--terra); }
 
-/* ── NAVIGATION ── */
 .vs-nav {
   display: flex;
   align-items: center;
@@ -1125,7 +1102,6 @@
 }
 .vs-nav-today:hover { background: var(--terra); color: #fff; }
 
-/* ── CALENDAR HEADER ── */
 .vs-cal-header {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -1144,7 +1120,6 @@
 }
 .vs-cal-hdr-weekend { color: var(--terra); opacity: 0.6; }
 
-/* ── CALENDAR GRID ── */
 .vs-cal-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -1152,7 +1127,6 @@
   gap: 4px;
 }
 
-/* ── DAY CELLS ── */
 .vs-cal-cell {
   min-height: 72px;
   padding: 6px 7px;
@@ -1173,7 +1147,6 @@
   pointer-events: none;
 }
 
-/* ── DAY NUMBER ── */
 .vs-cal-day-num {
   font-size: 0.78rem;
   font-weight: 700;
@@ -1191,7 +1164,6 @@
   background: var(--terra);
 }
 
-/* ── TODAY ── */
 .vs-cal-today {
   border: 2px solid var(--terra);
   box-shadow: 0 0 0 1px rgba(196,133,106,0.12);
@@ -1206,13 +1178,11 @@
 }
 .vs-cal-today .vs-cal-day-num { color: var(--terra); }
 
-/* ── ACTIVE DAY ── */
 .vs-cal-active {
   background: rgba(168,181,160,0.15);
   border-color: rgba(168,181,160,0.25);
 }
 
-/* ── DAY OFF ── */
 .vs-cal-off {
   opacity: 0.55;
   background-image: repeating-linear-gradient(
@@ -1230,14 +1200,12 @@
   margin-top: 1px;
 }
 
-/* ── NO SCHEDULE ── */
 .vs-cal-nosched {
   background: rgba(0,0,0,0.012);
   border-color: rgba(0,0,0,0.04);
 }
 .vs-cal-nosched .vs-cal-day-num { color: #bbb; }
 
-/* ── HOURS ── */
 .vs-cal-hours {
   font-size: 0.68rem;
   color: var(--deep-olive);
@@ -1245,7 +1213,6 @@
   line-height: 1.3;
 }
 
-/* ── PAUSE PILLS ── */
 .vs-cal-pause {
   font-size: 0.6rem;
   color: #8a6540;
@@ -1257,7 +1224,6 @@
   display: inline-block;
 }
 
-/* ── BUSY BLOCKS ── */
 .vs-cal-busy {
   font-size: 0.6rem;
   color: #9b2020;
@@ -1269,7 +1235,6 @@
   display: inline-block;
 }
 
-/* ── FOOTER ── */
 .vs-footer {
   margin-top: 1rem;
   padding-top: 0.75rem;
@@ -1279,7 +1244,6 @@
   gap: 0.6rem;
 }
 
-/* ── STATS ── */
 .vs-stats {
   display: flex;
   align-items: center;
@@ -1307,7 +1271,6 @@
   background: rgba(0,0,0,0.1);
 }
 
-/* ── LEGEND ── */
 .vs-legend {
   display: flex;
   gap: 1.2rem;
@@ -1334,7 +1297,6 @@
 .vs-leg-nosched::before { background: rgba(0,0,0,0.04); border: 1px solid rgba(0,0,0,0.12); }
 .vs-leg-busy::before { background: rgba(198,40,40,0.65); }
 
-/* ── ADDITIONAL RESPONSIVE ── */
 @media (max-width: 768px) {
   .sch-column { min-width: 140px; }
   .sch-col-header { min-width: 140px; }
@@ -1371,7 +1333,6 @@
   .vs-nav-today { padding: 0.2rem 0.5rem; font-size: 0.72rem; }
 }
 
-/* ── WEEK SCHEDULE BUTTON ── */
 .btn-week-schedule {
   background: transparent;
   border: 1.5px solid var(--soft-sage);
@@ -1389,7 +1350,6 @@
   color: var(--cream);
 }
 
-/* ── WEEK SCHEDULE MODAL ── */
 .week-sched-modal { max-width: 98vw !important; width: 98vw !important; max-height: 92vh !important; }
 
 .week-sched-loading {
@@ -1399,7 +1359,6 @@
   font-size: 0.9rem;
 }
 
-/* ── WEEK TOOLBAR ── */
 .week-toolbar {
   display: flex;
   align-items: center;
@@ -1443,7 +1402,6 @@
   color: #fff;
 }
 
-/* ── WEEK GRID ── */
 .week-sched-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -1464,7 +1422,6 @@
   transition: box-shadow 0.2s;
 }
 
-/* ── TODAY COLUMN ── */
 .week-day-today {
   border: 2px solid var(--terra);
   box-shadow: 0 0 0 1px rgba(196,133,106,0.15), 0 2px 8px rgba(196,133,106,0.1);
@@ -1479,7 +1436,6 @@
   background: linear-gradient(90deg, var(--terra), rgba(196,133,106,0.5));
 }
 
-/* ── DAY OFF ── */
 .week-day-off {
   opacity: 0.5;
   background-image: repeating-linear-gradient(
@@ -1491,7 +1447,6 @@
   );
 }
 
-/* ── DAY HEADER ── */
 .week-day-header {
   display: flex;
   flex-direction: column;
@@ -1528,7 +1483,6 @@
   letter-spacing: 0.02em;
 }
 
-/* ── SCHEDULE INFO (single-doctor) ── */
 .week-day-hours {
   font-size: 0.78rem;
   color: var(--deep-olive);
@@ -1552,7 +1506,6 @@
   padding: 0.1rem 0.3rem;
 }
 
-/* ── EMPTY DAY PLACEHOLDER ── */
 .week-day-empty {
   display: flex;
   align-items: center;
@@ -1568,7 +1521,6 @@
   opacity: 0.4;
 }
 
-/* ── APPOINTMENT LIST ── */
 .week-appt-count {
   font-size: 0.78rem;
   font-weight: 600;
@@ -1594,7 +1546,6 @@
 .week-appt-accent-accepted { border-left-color: var(--soft-sage); }
 .week-appt-accent-pending  { border-left-color: #c8a03c; }
 
-/* ── APPOINTMENT TOP ROW (time + status pill) ── */
 .week-appt-top {
   display: flex;
   align-items: center;
@@ -1641,7 +1592,6 @@
   font-size: 0.72rem;
 }
 
-/* ── WEEK LEGEND ── */
 .week-sched-legend {
   display: flex;
   gap: 1.2rem;
@@ -1673,7 +1623,6 @@
   background: rgba(198,40,40,0.7);
 }
 
-/* ── WEEK RESPONSIVE ── */
 @media (max-width: 900px) {
   .week-sched-grid {
     overflow-x: auto;
@@ -1713,7 +1662,6 @@
   .week-nav-today { padding: 0.2rem 0.5rem; font-size: 0.72rem; }
 }
 
-/* ── Main Tab Bar ── */
 .admin-main-tabs {
   display: flex;
   gap: .5rem;
@@ -1739,7 +1687,6 @@
   border-bottom-color: var(--deep-olive, #3D4A3A);
 }
 
-/* ── Doctors list card ── */
 .editor-section {
   background: #fff;
   border-radius: 16px;
@@ -1748,7 +1695,6 @@
   padding: 1.25rem;
 }
 
-/* ── Editor Fields ── */
 .editor-field {
   margin-bottom: 1rem;
 }
@@ -1776,7 +1722,6 @@
   outline: none;
 }
 
-/* ── Editor List Items ── */
 .editor-list-item {
   display: flex;
   align-items: center;
@@ -1796,7 +1741,6 @@
   flex-shrink: 0;
 }
 
-/* ── Editor Buttons ── */
 .editor-save-btn {
   background: var(--deep-olive, #3D4A3A);
   color: #fff;
@@ -1838,7 +1782,6 @@
 .editor-edit-btn:hover,
 .editor-delete-btn:hover { opacity: .8; }
 
-/* ── Editor Modal (reuses existing modal pattern) ── */
 .editor-modal-overlay {
   position: fixed;
   inset: 0;

@@ -1,5 +1,3 @@
-// Firebase configuration for Pawsome Vet
-// Uses Firebase v9 compat SDK loaded via CDN script tags
 
 const firebaseConfig = {
   apiKey: "AIzaSyApuvjQ64Rxv1DO0OnHw9K8eV5sjs8zKa0",

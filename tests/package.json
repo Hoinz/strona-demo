@@ -1,7 +1,8 @@
 {
   "private": true,
   "scripts": {
-    "test": "firebase emulators:exec --config ../firebase.json --only firestore --project demo-vet \"node rules.test.js\""
+    "check": "node site.test.js",
+    "test": "node site.test.js && firebase emulators:exec --config ../firebase.json --only firestore --project demo-vet \"node rules.test.js\""
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "^3.0.4",

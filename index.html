@@ -18,7 +18,6 @@
 <style>
   html { overflow-x: hidden; }
 
-  /* ──────── HERO ──────── */
   .hero {
     min-height: 100vh;
     display: grid;
@@ -149,7 +148,6 @@
     display: none;
   }
 
-  /* ──────── STATS STRIP ──────── */
   .stats {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -172,7 +170,6 @@
     margin-top: 0.3rem;
   }
 
-  /* ──────── SERVICES ──────── */
   .services {
     padding: 7rem 4rem;
     position: relative;
@@ -278,7 +275,6 @@
     display: none;
   }
 
-  /* ──────── ABOUT ──────── */
   .about {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -343,7 +339,6 @@
   .value-item strong { display: block; font-size: 0.9rem; margin-bottom: 2px; }
   .value-item span { font-size: 0.82rem; color: #888; }
 
-  /* ──────── TEAM ──────── */
   .team {
     padding: 7rem 4rem;
     background: var(--white);
@@ -392,7 +387,6 @@
   .team-member p { font-size: 0.82rem; color: var(--terra); font-weight: 500; letter-spacing: 0.04em; }
   .team-member .bio { font-size: 0.85rem; color: #999; margin-top: 0.5rem; word-break: break-word; }
 
-  /* ──────── TESTIMONIALS ──────── */
   .testimonials {
     padding: 7rem 4rem;
     background: var(--deep-olive);
@@ -464,7 +458,6 @@
   .author-name { font-weight: 600; font-size: 0.9rem; }
   .author-pet { font-size: 0.78rem; opacity: 0.6; }
 
-  /* ──────── CONTACT ──────── */
   .contact {
     padding: 7rem 4rem;
     position: relative;
@@ -501,7 +494,6 @@
     flex-shrink: 0;
   }
 
-  /* ──────── CONTACT CTA CARD ──────── */
   .contact-cta-card {
     background: var(--white);
     border-radius: 28px;
@@ -534,7 +526,6 @@
     margin-top: 0.5rem;
   }
 
-  /* ──────── SKIP LINK ──────── */
   .skip-link {
     position: absolute;
     top: -100%;
@@ -550,13 +541,11 @@
   }
   .skip-link:focus { top: 0; }
 
-  /* Contact icon bounce on hover */
   .contact-item:hover .contact-icon {
     animation: iconBounce 0.5s ease;
   }
 
 
-  /* ──────── RESPONSIVE ──────── */
   @media (max-width: 1280px) {
     .hero { padding: 8rem 3rem 4rem; gap: 2rem; }
     .hero-card { max-width: 340px; }
@@ -617,7 +606,6 @@
 
 <a href="#hero" class="skip-link">Przejdź do treści</a>
 
-<!-- ──── NAVBAR ──── -->
 <nav id="navbar" role="navigation" aria-label="Nawigacja główna">
   <a href="#hero" class="logo">
     <div class="logo-icon">
@@ -638,7 +626,6 @@
 </nav>
 
 <main>
-<!-- ──── HERO ──── -->
 <section class="hero" id="hero" aria-label="Strona główna">
   <div class="hero-content">
     <p class="section-label">Profesjonalna Opieka Weterynaryjna</p>
@@ -686,7 +673,6 @@
   </div>
 </section>
 
-<!-- ──── STATS ──── -->
 <div class="stats">
   <div class="stat-item">
     <div class="stat-number">15+</div>
@@ -706,7 +692,6 @@
   </div>
 </div>
 
-<!-- ──── SERVICES ──── -->
 <section class="services" id="uslugi" aria-label="Usługi">
   <div class="services-header">
     <p class="section-label">Co robimy</p>
@@ -748,7 +733,6 @@
   </div>
 </section>
 
-<!-- ──── ABOUT ──── -->
 <section class="about" id="o-nas" aria-label="O nas">
   <div class="about-img">
     <div class="about-img-emoji">🐈</div>
@@ -779,7 +763,6 @@
   </div>
 </section>
 
-<!-- ──── TEAM ──── -->
 <section class="team" id="zespol" aria-label="Zespół">
   <div class="team-header">
     <p class="section-label">Nasi ludzie</p>
@@ -813,7 +796,6 @@
   </div>
 </section>
 
-<!-- ──── TESTIMONIALS ──── -->
 <section class="testimonials" id="opinie" aria-label="Opinie klientów">
   <div class="testimonials-header">
     <p class="section-label">Szczęśliwe rodziny</p>
@@ -856,7 +838,6 @@
   </div>
 </section>
 
-<!-- ──── CONTACT ──── -->
 <section class="contact" id="kontakt" aria-label="Kontakt">
   <div class="contact-wrapper">
     <div class="contact-info">
@@ -893,7 +874,6 @@
 
 </main>
 
-<!-- ──── FOOTER ──── -->
 <footer role="contentinfo">
   <div class="footer-grid">
     <div class="footer-brand">
@@ -910,8 +890,9 @@
       <a href="badania-profilaktyczne.html">Badania profilaktyczne</a>
       <a href="szczepienia.html">Szczepienia</a>
       <a href="stomatologia.html">Stomatologia</a>
-      <a href="chirurgia.html">Chirurgia</a>
       <a href="diagnostyka.html">Diagnostyka</a>
+      <a href="chirurgia.html">Chirurgia</a>
+      <a href="plany-zywieniowe.html">Plany żywieniowe</a>
     </div>
     <div class="footer-col">
       <h4>Klinika</h4>
@@ -932,7 +913,6 @@
 </footer>
 
 <script>
-  // Fix scroll position when arriving via hash from another page
   if (window.location.hash && window.location.hash.length > 1) {
     var _hash = window.location.hash;
     window.addEventListener('load', function() {
@@ -946,14 +926,12 @@
     });
   }
 
-  // Navbar scroll effect
   const navbar = document.getElementById('navbar');
   const hamburger = document.querySelector('.hamburger');
   const navLinks = document.querySelector('.nav-links');
 
   window.addEventListener('scroll', () => {
     navbar.classList.toggle('scrolled', window.scrollY > 40);
-    // Close mobile menu on scroll
     if (navLinks.classList.contains('active')) {
       navLinks.classList.remove('active');
       hamburger.classList.remove('active');
@@ -961,14 +939,12 @@
     }
   });
 
-  // Mobile hamburger menu toggle
   hamburger.addEventListener('click', () => {
     const isOpen = navLinks.classList.toggle('active');
     hamburger.classList.toggle('active');
     hamburger.setAttribute('aria-expanded', isOpen);
   });
 
-  // Close menu on nav link click + scroll with exact navbar offset
   navLinks.querySelectorAll('a').forEach(link => {
     link.addEventListener('click', (e) => {
       navLinks.classList.remove('active');
@@ -988,7 +964,6 @@
 
 </script>
 <script>
-// Load Firebase and update "next free term" badge after page load
 window.addEventListener('load', function() {
   function loadScript(src, cb) {
     var s = document.createElement('script');

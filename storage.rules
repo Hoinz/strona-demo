@@ -1,5 +1,4 @@
 rules_version = '2';
-// The site stores no files; doctor photos were removed with the website editor.
 service firebase.storage {
   match /b/{bucket}/o {
     match /{allPaths=**} {

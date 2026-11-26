@@ -1,11 +1,5 @@
-// Service worker — offline support for the public pages.
-//  - Pages, scripts and styles: network-first, so a deploy reaches visitors
-//    right away; the cached copy is only used when the network is unavailable.
-//  - Fonts and images: cache-first (their content never changes under the same name).
-//  - The admin panel and all cross-origin requests (Firebase) are left to the browser.
-// Bump CACHE when the precache list below changes.
-const CACHE = 'pawsome-v6';
-const ASSETS = ['./', 'index.html', 'umow-wizyte.html', 'badania-profilaktyczne.html', 'szczepienia.html', 'stomatologia.html', 'diagnostyka.html', 'chirurgia.html', 'plany-zywieniowe.html', 'shared.css', 'booking.css', 'booking.js', 'services.js', 'firebase-config.js', 'logo.png', 'fonts/dmsans-latin.woff2', 'fonts/dmsans-latin-ext.woff2', 'fonts/playfair-latin.woff2', 'fonts/playfair-latin-ext.woff2', 'fonts/playfair-italic-latin.woff2', 'fonts/playfair-italic-latin-ext.woff2'];
+const CACHE = 'pawsome-v7';
+const ASSETS = ['./', 'index.html', 'umow-wizyte.html', 'badania-profilaktyczne.html', 'szczepienia.html', 'stomatologia.html', 'diagnostyka.html', 'chirurgia.html', 'plany-zywieniowe.html', 'shared.css', 'service.css', 'booking.css', 'booking.js', 'services.js', 'firebase-config.js', 'logo.png', 'fonts/dmsans-latin.woff2', 'fonts/dmsans-latin-ext.woff2', 'fonts/playfair-latin.woff2', 'fonts/playfair-latin-ext.woff2', 'fonts/playfair-italic-latin.woff2', 'fonts/playfair-italic-latin-ext.woff2'];
 const CACHE_FIRST = /\.(woff2|png|jpe?g|webp|svg|ico)$/;
 const NOT_CACHED = /\/admin\.(html|js|css)$/;
 
@@ -26,7 +20,7 @@ self.addEventListener('fetch', e => {
   const url = new URL(req.url);
   if (req.method !== 'GET' || url.origin !== self.location.origin || NOT_CACHED.test(url.pathname)) return;
 
-  // Keyed by path only, so umow-wizyte.html?service=… shares a single cache entry
+// Query strings such as umow-wizyte.html?service=… share one cache entry.
   const key = url.pathname;
   e.respondWith(caches.open(CACHE).then(cache => {
     const fromNetwork = () => fetch(req).then(res => {

@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <title>Pawsome Klinika Weterynaryjna</title>
 <meta name="robots" content="noindex">
-<!-- Old links were usluga.html?slug=<slug>; every service now has its own <slug>.html -->
 <script>
   var slug = new URLSearchParams(location.search).get('slug') || '';
   location.replace(/^[a-z-]+$/.test(slug) ? slug + '.html' : 'index.html#uslugi');

@@ -1,21 +1,11 @@
-// Slot-cell model: a booked visit occupies one `slots` document per 10-minute
-// cell, with the id `doctorId_date_time` and duration 10, so two visitors can
-// never take the same cell. Each cell names its owner (appointmentId); the
-// `appointments` document points at its first cell (slotId) and is created in
-// the same transaction as the cells.
-//
-// Document-access budget for one public booking: one getAfter() per cell plus
-// two calls for the appointment, against a limit of 20 per transaction. That
-// is why a public visit is capped at 180 minutes (18 cells).
-//
-// Deploy order: publish the website first, then deploy these rules. The
-// previous website build creates cells without appointmentId, which these
-// rules reject.
+// A public booking may use at most 20 document reads: one getAfter() per cell
+// plus two for the visit. That caps a public visit at 180 minutes (18 cells).
+// Deploy the website before these rules. Older site builds write cells without
+// appointmentId, which these rules reject.
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ── Role helpers (check roles collection) ──
     function getRoleDoc() {
       return get(/databases/$(database)/documents/roles/$(request.auth.uid)).data;
     }
@@ -27,13 +17,10 @@ service cloud.firestore {
              && (getRoleDoc().role == "admin" || getRoleDoc().role == "doctor");
     }
 
-    // ── Format helpers ──
-    // 'YYYY-MM-DD'
     function isDateString(value) {
       return value is string
              && value.matches('^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$');
     }
-    // 'HH:MM' on the 10-minute grid
     function isCellTime(value) {
       return value is string
              && value.matches('^([01][0-9]|2[0-3]):[0-5]0$');
@@ -43,9 +30,6 @@ service cloud.firestore {
       return int(hhmm.split(':')[0]) * 60 + int(hhmm.split(':')[1]);
     }
 
-    // ── Public booking: one 10-minute cell ──
-    // Must belong to an appointment created by this same request, and lie
-    // inside that appointment's time range.
     function isPublicSlotCell(slotId) {
       let cell = request.resource.data;
       return cell.keys().hasAll(['date', 'time', 'doctorId', 'duration', 'appointmentId'])
@@ -69,7 +53,6 @@ service cloud.firestore {
              && toMins(cell.time) < toMins(appt.time) + appt.duration;
     }
 
-    // ── Public booking: the appointment ──
     function isPublicAppointment() {
       return request.resource.data.keys().hasAll([
                'slotId', 'date', 'time', 'patientName', 'petName',
@@ -108,34 +91,26 @@ service cloud.firestore {
                                                 + request.resource.data.date + '_'
                                                 + request.resource.data.time
              && exists(/databases/$(database)/documents/doctors/$(request.resource.data.doctorId))
-             // The first cell is created by this same request (its own rule
-             // ties it back to this appointment)
              && existsAfter(/databases/$(database)/documents/slots/$(request.resource.data.slotId));
     }
 
-    // ── Roles (only admins can manage; everyone reads their own at login) ──
     match /roles/{uid} {
       allow read: if request.auth != null
                   && (request.auth.uid == uid || isAdmin());
       allow write: if isAdmin();
     }
 
-    // ── Doctors ──
     match /doctors/{doctorId} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
-    // ── Slots ──
     match /slots/{slotId} {
       allow read: if true;
-      // Public booking page: only well-formed 10-minute cells
       allow create: if isPublicSlotCell(slotId);
-      // Staff: unrestricted (also restores legacy-shaped docs)
       allow create, update, delete: if isStaff();
     }
 
-    // ── Appointments ──
     match /appointments/{appointmentId} {
       allow read: if isStaff();
       allow create: if isPublicAppointment();
@@ -149,13 +124,6 @@ service cloud.firestore {
       allow delete: if isStaff();
     }
 
-    // ── Schedule (clinic-wide overrides) ──
-    match /schedule/{dateId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    // ── Doctor Schedules ──
     match /doctorSchedules/{doctorId} {
       allow read: if true;
       allow write: if isAdmin()

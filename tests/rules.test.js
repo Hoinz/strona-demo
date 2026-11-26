@@ -5,8 +5,6 @@ const { initializeTestEnvironment, assertSucceeds, assertFails } = require('@fir
 const firebase = require('firebase/compat/app');
 require('firebase/compat/firestore');
 
-// Runs the real firestore.rules and the real changeVisit() from admin.js
-// against the Firestore emulator: `npm test` in this folder.
 const REPO = path.join(__dirname, '..');
 const rules = fs.readFileSync(path.join(REPO, 'firestore.rules'), 'utf8');
 const adminSrc = fs.readFileSync(path.join(REPO, 'admin.js'), 'utf8');
@@ -63,6 +61,7 @@ function book(db, time, dur, opts = {}) {
       const db = ctx.firestore();
       await db.collection('doctors').doc(DOC).set({ name: 'Dr X' });
       await db.collection('roles').doc('staff1').set({ role: 'admin' });
+      await db.collection('roles').doc(DOC).set({ role: 'doctor' });
     });
     try { await fn(); results.push('PASS ' + name); }
     catch (e) { results.push('FAIL ' + name + ' :: ' + e.message); }
@@ -71,8 +70,8 @@ function book(db, time, dur, opts = {}) {
   const anon = () => anonDb;
 
   await check('public booking of 90 min (9 cells) succeeds', () => assertSucceeds(book(anon(), '10:00', 90).commit));
-  // The emulator does not enforce the 20 document-access limit, so this only
-  // shows the rules accept 18 cells; the 180-minute cap is the budget guard.
+// The emulator does not enforce the 20-read limit, so this only shows the rules
+// accept 18 cells. The 180-minute cap is what keeps production under it.
   await check('public booking of 180 min (18 cells) is accepted', () => assertSucceeds(book(anon(), '08:00', 180).commit));
   await check('public booking over 180 min is denied', () => assertFails(book(anon(), '08:00', 190).commit));
   await check('orphan cell with no appointment is denied', () => assertFails(book(anon(), '10:00', 10, { noAppt: true }).commit));
@@ -98,7 +97,7 @@ function book(db, time, dur, opts = {}) {
     extractVar(adminSrc, 'SLOT_CELL_MIN'), extractVar(adminSrc, 'SLOT_CELL_ID_RE'),
     extractFn(adminSrc, 'timeToMins'), extractFn(adminSrc, 'minsToTime'),
     extractFn(adminSrc, 'visitCellTimes'), extractFn(adminSrc, 'slotCellId'),
-    'function getServiceDuration() { return 20; }',
+    'var servicesBySlug = {};', extractFn(adminSrc, 'visitDuration'),
     extractFn(adminSrc, 'changeVisit'), 'return changeVisit;'
   ].join('\n');
   const staffDb = env.authenticatedContext('staff1').firestore();
@@ -137,6 +136,65 @@ function book(db, time, dur, opts = {}) {
     const v = book(anon(), '10:00', 20); await v.commit;
     await staffChangeVisit()(v.id, { status: 'rejected' });
     assert.deepStrictEqual(await cellOwners(), {});
+  });
+
+  const userDbs = {};
+  const asUser = uid => userDbs[uid] || (userDbs[uid] = env.authenticatedContext(uid).firestore());
+  const seededVisit = async () => {
+    const v = book(anon(), '10:00', 20); await v.commit; return v.id;
+  };
+
+  await check('anonymous visitors cannot read visits', async () => {
+    const id = await seededVisit();
+    await assertFails(anon().collection('appointments').doc(id).get());
+    await assertFails(anon().collection('appointments').get());
+  });
+  await check('signed-in users without a role cannot read visits', async () => {
+    const id = await seededVisit();
+    await assertFails(asUser('stranger').collection('appointments').doc(id).get());
+  });
+  await check('a public visit must be pending', () =>
+    assertFails(book(anon(), '10:00', 20, { appt: { status: 'accepted' } }).commit));
+  await check('a public visit needs an existing doctor', async () => {
+    const db = anon();
+    const batch = db.batch();
+    const ref = db.collection('appointments').doc();
+    batch.set(db.collection('slots').doc(cellId('10:00', 'ghost')),
+      { date: DATE, time: '10:00', doctorId: 'ghost', duration: 10, appointmentId: ref.id });
+    batch.set(ref, apptData('10:00', 10, { doctorId: 'ghost', slotId: cellId('10:00', 'ghost') }));
+    await assertFails(batch.commit());
+  });
+  await check('a public visit with an invalid phone is denied', () =>
+    assertFails(book(anon(), '10:00', 20, { appt: { phone: '12345' } }).commit));
+  await check('a public visit with extra fields is denied', () =>
+    assertFails(book(anon(), '10:00', 20, { appt: { notes: 'x' } }).commit));
+  await check('anonymous visitors cannot write roles, doctors or schedules', async () => {
+    await assertFails(anon().collection('roles').doc('x').set({ role: 'admin' }));
+    await assertFails(anon().collection('doctors').doc('x').set({ name: 'x' }));
+    await assertFails(anon().collection('doctorSchedules').doc(DOC).set({ days: {} }));
+  });
+  await check('a signed-in user cannot grant themselves a role', () =>
+    assertFails(asUser('stranger').collection('roles').doc('stranger').set({ role: 'admin' })));
+  await check('a doctor edits only their own schedule', async () => {
+    await assertSucceeds(asUser(DOC).collection('doctorSchedules').doc(DOC).set({ days: {} }));
+    await assertFails(asUser(DOC).collection('doctorSchedules').doc('doc2').set({ days: {} }));
+  });
+  await check('staff cannot move a visit to another doctor', async () => {
+    const id = await seededVisit();
+    await assertFails(asUser(DOC).collection('appointments').doc(id).update({ doctorId: 'doc2' }));
+    await assertSucceeds(asUser(DOC).collection('appointments').doc(id).update({ notes: 'ok' }));
+  });
+  await check('an admin adds and removes a doctor in one batch each', async () => {
+    const db = asUser('staff1');
+    const add = db.batch();
+    add.set(db.collection('doctors').doc('doc2'), { name: 'Dr Y', specialty: '' });
+    add.set(db.collection('roles').doc('doc2'), { role: 'doctor' });
+    await assertSucceeds(add.commit());
+    const remove = db.batch();
+    remove.delete(db.collection('roles').doc('doc2'));
+    remove.delete(db.collection('doctorSchedules').doc('doc2'));
+    remove.delete(db.collection('doctors').doc('doc2'));
+    await assertSucceeds(remove.commit());
   });
 
   await env.cleanup();

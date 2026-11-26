@@ -1,8 +1,6 @@
-// Admin dashboard for Pawsome Vet
 (function() {
   'use strict';
 
-  // ── DOM ──
   var loginView = document.getElementById('admin-login');
   var dashboard = document.getElementById('admin-dashboard');
   var loginForm = document.getElementById('login-form');
@@ -20,15 +18,14 @@
   var allDateBookings = [];
   var dashboardInitialized = false;
   var currentUser = null;
-  var viewMode = 'mine';   // 'mine' | 'all'
+  var viewMode = 'mine';
   var doctorName = '';
-  var isAdmin = false;           // only admins may write `doctors` and `roles`
-  var acceptedById = {};   // id → booking, for the click-to-edit modal
-  var doctorScheduleCache = {};  // doctorId → schedule doc data
-  var allDoctors = [];           // [{id, name, specialty}] sorted by name
+  var isAdmin = false;
+  var acceptedById = {};
+  var doctorScheduleCache = {};
+  var doctorSchedulesStatus = 'loading';
+  var allDoctors = [];
 
-  // Clinic opening hours per JS day-of-week — the default vertical range of the
-  // day timeline (stretched when a visit falls outside it)
   var CLINIC_HOURS = {
     1: { open: '08:00', close: '20:00' },
     2: { open: '08:00', close: '20:00' },
@@ -42,14 +39,12 @@
   var servicesBySlug = {};
   window.PawsomeServices.forEach(function(s) { servicesBySlug[s.slug] = s; });
 
-  // ── AUTH ──
   function initAuth() {
     var auth = window.PawsomeAuth;
     if (!auth) return;
 
     auth.onAuthStateChanged(function(user) {
       if (user) {
-        // Check role in Firestore roles collection
         window.PawsomeDB.collection('roles').doc(user.uid).get().then(function(roleDoc) {
           var roleData = roleDoc.exists ? roleDoc.data() : {};
           var role = roleData.role || null;
@@ -64,7 +59,6 @@
           resetDoctorsView();
           loginView.style.display = 'none';
           dashboard.classList.add('visible');
-          // Reload on every sign-in — a different user may log in without a page reload
           loadDoctorInfo(user.uid, function() {
             if (!dashboardInitialized) {
               initDashboard();
@@ -90,7 +84,6 @@
     });
   }
 
-  // ── LOAD DOCTOR INFO ──
   function loadDoctorInfo(uid, callback) {
     function done() {
       var labelEl = document.getElementById('doctor-label');
@@ -106,7 +99,6 @@
     });
   }
 
-  // ── LOGIN ──
   loginForm.addEventListener('submit', function(e) {
     e.preventDefault();
     loginError.classList.remove('visible');
@@ -121,7 +113,6 @@
       });
   });
 
-  // ── FORGOT PASSWORD ──
   document.getElementById('forgot-password-link').addEventListener('click', function(e) {
     e.preventDefault();
     var email = document.getElementById('login-email').value.trim();
@@ -147,12 +138,10 @@
     });
   });
 
-  // ── LOGOUT ──
   logoutBtn.addEventListener('click', function() {
     window.PawsomeAuth.signOut();
   });
 
-  // ── DASHBOARD ──
   function initDashboard() {
     var today = new Date();
     datePicker.value = formatDateInput(today);
@@ -168,7 +157,6 @@
       });
     });
 
-    // Wire view-mode toggle buttons
     var btnViewMine = document.getElementById('btn-view-mine');
     var btnViewAll  = document.getElementById('btn-view-all');
     if (btnViewMine && btnViewAll) {
@@ -200,7 +188,6 @@
     loadBookings();
   }
 
-  // ── UPDATE PENDING TAB LABEL based on view mode ──
   function updatePendingTabLabel() {
     var labelEl = document.querySelector('#tab-pending .tab-label');
     if (!labelEl) return;
@@ -209,7 +196,6 @@
       : 'Wszystkie moje oczekujące';
   }
 
-  // ── LOAD BOOKINGS (two listeners: all pending + date-specific) ──
   function loadBookings() {
     var db = window.PawsomeDB;
     if (!db) return;
@@ -219,7 +205,6 @@
 
     var dateStr = datePicker.value;
 
-    // Listener 1: All pending appointments across all dates
     var pendingQuery = db.collection('appointments').where('status', '==', 'pending');
     if (viewMode === 'mine' && currentUser) {
       pendingQuery = pendingQuery.where('doctorId', '==', currentUser.uid);
@@ -238,7 +223,6 @@
       bookingsList.innerHTML = '<div class="no-bookings">Błąd ładowania danych</div>';
     });
 
-    // Listener 2: All appointments for the selected date (accepted / rejected / all)
     var dateQuery = db.collection('appointments').where('date', '==', dateStr);
     if (viewMode === 'mine' && currentUser) {
       dateQuery = dateQuery.where('doctorId', '==', currentUser.uid);
@@ -253,9 +237,7 @@
     }, function() {});
   }
 
-  // ── REFRESH DISPLAY (re-render from cached data) ──
   function refreshDisplay(dateStr) {
-    // Counts: pending = all dates, others = selected date only
     var counts = { pending: allPendingBookings.length, accepted: 0, rejected: 0, all: allDateBookings.length };
     allDateBookings.forEach(function(b) {
       if (b.status === 'accepted' || b.status === 'rejected') {
@@ -264,12 +246,10 @@
     });
     updateCountsFromData(counts);
 
-    // Build acceptedById for the click-to-edit handlers (always date-specific)
     var acceptedArr = allDateBookings.filter(function(b) { return b.status === 'accepted'; });
     acceptedById = {};
     acceptedArr.forEach(function(b) { acceptedById[b.id] = b; });
 
-    // Render list
     if (currentFilter === 'pending') {
       renderBookings(allPendingBookings, true);
     } else if (currentFilter === 'all') {
@@ -281,7 +261,6 @@
     renderTimeline(dateStr, acceptedArr);
   }
 
-  // ── RENDER BOOKINGS ──
   function renderBookings(bookings, showDate) {
     if (bookings.length === 0) {
       bookingsList.innerHTML = '<div class="no-bookings">Brak rezerwacji do wyświetlenia</div>';
@@ -290,7 +269,7 @@
 
     bookingsList.innerHTML = bookings.map(function(b) {
       var statusLabel = { pending: 'Oczekuje', accepted: 'Potwierdzona', rejected: 'Odrzucona' }[b.status] || b.status;
-      var dur = b.duration || getServiceDuration(b.service) || 20;
+      var dur = visitDuration(b);
       var durLabel = dur + ' min';
       var endTime = minsToTime(timeToMins(b.time) + dur);
 
@@ -315,7 +294,6 @@
     var localById = {};
     bookings.forEach(function(b) { localById[b.id] = b; });
 
-    // Pending cards → open action modal
     bookingsList.querySelectorAll('.booking-card.status-pending').forEach(function(card) {
       card.addEventListener('click', function() {
         var booking = localById[this.dataset.id];
@@ -323,7 +301,6 @@
       });
     });
 
-    // Accepted cards → open edit modal
     bookingsList.querySelectorAll('.booking-card.status-accepted').forEach(function(card) {
       card.addEventListener('click', function() {
         var booking = acceptedById[this.dataset.id];
@@ -331,7 +308,6 @@
       });
     });
 
-    // Rejected cards → open details/restore modal
     bookingsList.querySelectorAll('.booking-card.status-rejected').forEach(function(card) {
       card.addEventListener('click', function() {
         var booking = localById[this.dataset.id];
@@ -340,7 +316,6 @@
     });
   }
 
-  // ── UPDATE TAB COUNTS (from in-memory data) ──
   function updateCountsFromData(counts) {
     tabs.forEach(function(tab) {
       var f = tab.dataset.filter;
@@ -349,7 +324,6 @@
     });
   }
 
-  // ── RENDER TIMELINE (visual block schedule) ──
   function renderTimeline(dateStr, acceptedBookings) {
     if (!timelineEl) return;
 
@@ -362,27 +336,22 @@
 
     var openMin = timeToMins(h.open);
     var closeMin = timeToMins(h.close);
-    // Doctors' own schedules may start earlier / end later than the clinic —
-    // stretch the range (to full hours) so every accepted visit is drawn
     acceptedBookings.forEach(function(b) {
       var bStart = timeToMins(b.time);
       if (!b.time || isNaN(bStart)) return;
-      var bEnd = bStart + (b.duration || getServiceDuration(b.service) || 20);
+      var bEnd = bStart + visitDuration(b);
       openMin = Math.min(openMin, Math.floor(bStart / 60) * 60);
       closeMin = Math.max(closeMin, Math.ceil(bEnd / 60) * 60);
     });
     closeMin = Math.min(closeMin, 24 * 60);
     var totalHeight = Math.round((closeMin - openMin) * PX_PER_MIN);
 
-    // Group bookings into columns: one per doctor in "all" view, single column in "mine"
     var columns;
     if (viewMode === 'all') {
       var doctorMap = {};
-      // Seed a column for every known doctor (so empty-day doctors still appear)
       allDoctors.forEach(function(d) {
         doctorMap[d.id] = { name: d.name, bookings: [] };
       });
-      // Fill in accepted bookings
       acceptedBookings.forEach(function(b) {
         var key = b.doctorId || b.doctorName || 'unknown';
         if (!doctorMap[key]) doctorMap[key] = { name: b.doctorName || 'Lekarz', bookings: [] };
@@ -397,7 +366,6 @@
 
     var showHeaders = columns.length > 1;
 
-    // Hour + half-hour grid lines
     function buildGridLines() {
       var g = '';
       for (var gm = openMin; gm <= closeMin; gm += 60) {
@@ -410,11 +378,10 @@
     }
     var gridLines = buildGridLines();
 
-    // Build one appointment block
     function buildBlock(b, colorIdx, isSingle) {
       var startMin = timeToMins(b.time);
       if (isNaN(startMin) || startMin < openMin || startMin >= closeMin) return '';
-      var apptDur = b.duration || getServiceDuration(b.service) || 20;
+      var apptDur = visitDuration(b);
       var endMin = Math.min(startMin + apptDur, closeMin);
       var topPx = Math.round((startMin - openMin) * PX_PER_MIN);
       var heightPx = Math.round((endMin - startMin) * PX_PER_MIN);
@@ -433,7 +400,6 @@
         inner + '</div>';
     }
 
-    // Build columns HTML (body only — headers are in a separate row above)
     var columnsHtml = columns.map(function(col, idx) {
       var blocks = col.bookings.map(function(b) { return buildBlock(b, idx, !showHeaders); }).join('');
       var bodyClass = showHeaders ? ' sch-col-body-multi' : '';
@@ -442,7 +408,6 @@
         '</div>';
     }).join('');
 
-    // Build header row (combined view only) — separate from the body so the time axis aligns correctly
     var headerRowHtml = '';
     if (showHeaders) {
       var headerCols = columns.map(function(col) {
@@ -451,7 +416,6 @@
       headerRowHtml = '<div class="sch-header-row"><div class="sch-time-spacer"></div><div class="sch-columns-wrap">' + headerCols + '</div></div>';
     }
 
-    // Build time axis HTML
     var axisHtml = '';
     for (var am = openMin; am <= closeMin; am += 60) {
       axisHtml += '<div class="sch-hour-label" style="top:' + Math.round((am - openMin) * PX_PER_MIN) + 'px">' + minsToTime(am) + '</div>';
@@ -473,7 +437,6 @@
         var s = timelineEl.querySelector('.sched-scroll');
         if (s) s.style.height = s.scrollHeight + 'px';
       });
-      // Mouse drag-to-scroll for desktop
       (function() {
         var s = timelineEl.querySelector('.sched-scroll');
         if (!s) return;
@@ -504,7 +467,6 @@
         });
       })();
     }
-    // Attach click handlers to appointment blocks
     timelineEl.querySelectorAll('.sch-appt-block').forEach(function(el) {
       el.addEventListener('click', function() {
         var booking = acceptedById[this.dataset.id];
@@ -513,16 +475,10 @@
     });
   }
 
-  // ── ACTIONS ──
-  // Slot cells — the same contract as booking.js: the day is a 10-minute grid
-  // and a pending/accepted visit holds one `slots` doc per grid cell that
-  // overlaps [start, start + duration), with the id doctorId_date_HH:MM.
   var SLOT_CELL_MIN = 10;
   var SLOT_CELL_ID_RE = /_\d{4}-\d{2}-\d{2}_\d{2}:\d{2}$/;
   var SLOT_TAKEN_MSG = 'Ten termin jest już zajęty przez inną rezerwację (potwierdzoną lub oczekującą).';
 
-  // Start times ('HH:MM') of the grid cells a visit occupies. Floor/ceil
-  // because staff can set off-grid times such as 09:35.
   function visitCellTimes(time, duration) {
     var start = timeToMins(time);
     var from = Math.floor(start / SLOT_CELL_MIN) * SLOT_CELL_MIN;
@@ -540,41 +496,32 @@
     return err && err.code === 'slot-taken' ? SLOT_TAKEN_MSG : 'Błąd zapisu — spróbuj ponownie.';
   }
 
-  // Applies `changes` (any of status / date / time / duration) to a visit and
-  // moves its slot cells in one transaction. Rejects with code 'slot-taken'
-  // when a cell the visit needs is held by another (pending or accepted) visit.
   function changeVisit(id, changes) {
     var db = window.PawsomeDB;
     var apptRef = db.collection('appointments').doc(id);
     var slots = db.collection('slots');
 
     return db.runTransaction(function(transaction) {
-      // Read the visit inside the transaction: the modal's copy may be stale
-      // if another staff member has just moved or rejected it.
       return transaction.get(apptRef).then(function(apptDoc) {
         if (!apptDoc.exists) throw new Error('appointment-missing');
         var b = apptDoc.data();
 
-        // Legacy bookings hold ONE slot doc with a random id for the whole
-        // visit. `slotId` cannot be updated (rules), so a cell-shaped one goes
-        // stale after a move and may now be another visit's cell — never
-        // touch it; the visit's cells are always computed instead.
+// slotId cannot be updated (rules), so after a move it may name another visit's
+// cell. Only a legacy random-id slotId is ever touched.
         var legacyId = b.slotId || id;
         var legacyRef = SLOT_CELL_ID_RE.test(legacyId) ? null : slots.doc(legacyId);
 
         return (legacyRef ? transaction.get(legacyRef) : Promise.resolve(null)).then(function(legacyDoc) {
-          // While its legacy doc exists the visit owns no cells yet
           var hasLegacySlot = !!(legacyDoc && legacyDoc.exists);
           var doctorId = b.doctorId || '';
-          var curDur = b.duration || getServiceDuration(b.service) || 20;
+          var curDur = visitDuration(b);
           var newStatus = changes.status || b.status;
           var newDate = changes.date || b.date;
           var newTime = changes.time || b.time;
           var newDur = changes.duration || curDur;
 
-          // Cells the visit may hold: computed from its stored time and
-          // duration, then confirmed by their owner field, so a visit whose
-          // stored range covers other visits' cells never releases them.
+// A forged visit's stored range may cover other visits' cells, so only cells
+// whose appointmentId matches this visit are released.
           var curIds = (b.status === 'rejected' || hasLegacySlot) ? [] :
             visitCellTimes(b.time, curDur).map(function(t) { return slotCellId(doctorId, b.date, t); });
           var newTimes = newStatus === 'rejected' ? [] : visitCellTimes(newTime, newDur);
@@ -596,7 +543,6 @@
               }
             });
 
-            // All reads done — release, claim, update
             Object.keys(owned).forEach(function(cellId) {
               if (newIds.indexOf(cellId) === -1) transaction.delete(slots.doc(cellId));
             });
@@ -626,17 +572,15 @@
     return changeVisit(id, { status: 'rejected' });
   }
 
-  // A rejected visit holds no cells, so this claims them all again
   function restoreBooking(id, duration) {
     return changeVisit(id, { status: 'accepted', duration: duration });
   }
 
-  // ── REJECTED VISIT MODAL ──
   function openRejectedModal(booking) {
     var existing = document.getElementById('rejected-modal-overlay');
     if (existing) existing.parentNode.removeChild(existing);
 
-    var dur = booking.duration || getServiceDuration(booking.service) || 20;
+    var dur = visitDuration(booking);
     var endTime = minsToTime(timeToMins(booking.time) + dur);
 
     var overlay = document.createElement('div');
@@ -711,12 +655,11 @@
     }, { once: true });
   }
 
-  // ── PENDING VISIT MODAL ──
   function openPendingModal(booking) {
     var existing = document.getElementById('pending-modal-overlay');
     if (existing) existing.parentNode.removeChild(existing);
 
-    var dur = booking.duration || getServiceDuration(booking.service) || 20;
+    var dur = visitDuration(booking);
     var endTime = minsToTime(timeToMins(booking.time) + dur);
 
     var overlay = document.createElement('div');
@@ -819,12 +762,11 @@
     }, { once: true });
   }
 
-  // ── APPOINTMENT MODAL ──
   function openApptModal(booking) {
     var existing = document.getElementById('appt-modal-overlay');
     if (existing) existing.parentNode.removeChild(existing);
 
-    var dur = booking.duration || getServiceDuration(booking.service) || 20;
+    var dur = visitDuration(booking);
     var endTime = minsToTime(timeToMins(booking.time) + dur);
 
     var overlay = document.createElement('div');
@@ -832,7 +774,6 @@
     overlay.className = 'appt-modal-overlay';
 
     var serviceKeys = window.PawsomeServices.map(function(s) { return s.slug; });
-    // Keep the visit's current service selectable even if it has since been removed
     if (booking.service && serviceKeys.indexOf(booking.service) === -1) serviceKeys.push(booking.service);
     var serviceOptions = serviceKeys.map(function(key) {
       return '<option value="' + escapeAttr(key) + '"' + (booking.service === key ? ' selected' : '') + '>' + escapeHtml(getServiceName(key)) + '</option>';
@@ -894,7 +835,6 @@
     overlay.addEventListener('click', function(e) { if (e.target === overlay) closeApptModal(); });
     modal.querySelector('.appt-modal-close').addEventListener('click', closeApptModal);
 
-    // Shown above whichever panel is open (actions, reject confirm, either form)
     var modalErrorEl = modal.querySelector('.appt-modal-error');
     function showError(msg) {
       modalErrorEl.textContent = msg;
@@ -1011,10 +951,6 @@
     }, { once: true });
   }
 
-  // Resolves once saved (and closes the modal); rejects on failure so the
-  // caller can show the error next to the form that triggered it.
-  // `movesSlots`: the fields change date/time/duration, so the visit's slot
-  // cells must move with it; patient-data edits touch no slots.
   function amendAppt(id, fields, movesSlots) {
     var saved = movesSlots
       ? changeVisit(id, fields)
@@ -1022,10 +958,9 @@
     return saved.then(closeApptModal);
   }
 
-  // ── HELPERS ──
-  function getServiceDuration(service) {
-    var s = servicesBySlug[service];
-    return (s && s.duration) || 10;
+  function visitDuration(visit) {
+    var s = servicesBySlug[visit.service];
+    return visit.duration || (s && s.duration) || 10;
   }
 
   function getServiceName(slug) {
@@ -1033,10 +968,6 @@
     return (s && s.name) || slug || '';
   }
 
-  // Start time of an accepted visit of the same doctor overlapping
-  // [startMin, endMin) on `date`, or null. Asks Firestore rather than the
-  // in-memory list, which only holds the date selected in the date picker
-  // (and, in "mine" view, only the signed-in doctor's visits).
   function findConflict(doctorId, date, startMin, endMin, excludeId) {
     return window.PawsomeDB.collection('appointments').where('date', '==', date).get()
       .then(function(snap) {
@@ -1045,7 +976,7 @@
           var b = doc.data();
           if (doc.id === excludeId || b.status !== 'accepted' || b.doctorId !== doctorId) return;
           var bStart = timeToMins(b.time);
-          var bEnd = bStart + (b.duration || getServiceDuration(b.service) || 20);
+          var bEnd = bStart + visitDuration(b);
           if (startMin < bEnd && endMin > bStart) conflictTime = b.time;
         });
         return conflictTime;
@@ -1100,10 +1031,14 @@
       String(d.getDate()).padStart(2, '0');
   }
 
-  // ── DOCTOR SCHEDULE ──
   function loadAllDoctorSchedules() {
     window.PawsomeDB.collection('doctorSchedules').onSnapshot(function(snap) {
-      snap.forEach(function(doc) { doctorScheduleCache[doc.id] = doc.data(); });
+      var cache = {};
+      snap.forEach(function(doc) { cache[doc.id] = doc.data(); });
+      doctorScheduleCache = cache;
+      doctorSchedulesStatus = 'ready';
+    }, function() {
+      doctorSchedulesStatus = 'failed';
     });
   }
 
@@ -1112,23 +1047,18 @@
     return new Date(+p[0], +p[1]-1, +p[2]).getDay();
   }
 
-  // Doctor's config for a date: per-day entry > weekly template (only inside
-  // its validity period). Null when nothing is set for that date.
-  // Mirrors resolveDoctorDay() in booking.js — keep the two in sync.
   function resolveDayConfig(sched, dateStr, dow) {
     if (!sched) return null;
     var day = sched.days && sched.days[dateStr];
     if (day) return day;
     if (sched.validFrom && dateStr < sched.validFrom) return null;
     if (sched.validUntil && dateStr > sched.validUntil) return null;
-    return (sched.defaultWeek && sched.defaultWeek[String(dow)]) ||
-           (sched.weeklyHours && sched.weeklyHours[String(dow)]) || null;
+    return (sched.defaultWeek && sched.defaultWeek[String(dow)]) || null;
   }
 
   function validateAgainstScheduleData(time, duration, date, sched) {
     if (!sched) return null;
     var vStart = timeToMins(time), vEnd = vStart + duration;
-    // Busy blocks are independent of the validity period — always check them
     if (sched.busyBlocks) {
       for (var k = 0; k < sched.busyBlocks.length; k++) {
         var bb = sched.busyBlocks[k];
@@ -1154,6 +1084,8 @@
   }
 
   function validateAgainstDoctorSchedule(time, duration, date, doctorId) {
+    if (doctorSchedulesStatus === 'loading') return 'Grafiki lekarzy jeszcze się wczytują. Spróbuj ponownie za chwilę.';
+    if (doctorSchedulesStatus === 'failed') return 'Nie udało się wczytać grafików lekarzy. Odśwież stronę.';
     return validateAgainstScheduleData(time, duration, date, doctorScheduleCache[doctorId]);
   }
 
@@ -1162,10 +1094,7 @@
     if (existing) existing.parentNode.removeChild(existing);
 
     var sched = doctorScheduleCache[currentUser.uid] || {};
-    // Prefill only: `lastWeek` is the weekly form as last saved. The hours that
-    // actually apply are the per-day entries in `days`.
-    var defaultWeek = sched.lastWeek || sched.defaultWeek || sched.weeklyHours || {};
-    // Copy — edits must not leak into the cached schedule if the save is cancelled or rejected
+    var defaultWeek = sched.lastWeek || sched.defaultWeek || {};
     var days = Object.assign({}, sched.days);
     var busyBlocks = (sched.busyBlocks || []).slice();
     var validFrom = sched.validFrom || '';
@@ -1374,7 +1303,6 @@
       modal.querySelector('#sched-block-end').value = '';
     });
 
-    // The weekly rows as they stand in the form ('0'..'6' → day config)
     function readWeekRows() {
       var wh = {};
       modal.querySelectorAll('.sched-day-row').forEach(function(row) {
@@ -1389,7 +1317,6 @@
       });
       return wh;
     }
-    // What the form was prefilled with — to tell "hours edited" from "hours left alone"
     var prefilledWeekJson = JSON.stringify(readWeekRows());
 
     modal.querySelector('.sched-btn-save').addEventListener('click', function() {
@@ -1415,7 +1342,6 @@
         var endParts = vUntil.split('-');
         end = new Date(+endParts[0], +endParts[1] - 1, +endParts[2]);
         if (cur > end) { invalid('Data „do” nie może być wcześniejsza niż „od”.'); return; }
-        // Inclusive day count (rounded: a DST change makes a day 23 or 25 hours)
         if (Math.round((end - cur) / 86400000) + 1 > 366) { invalid('Okres może obejmować najwyżej rok.'); return; }
       }
 
@@ -1435,11 +1361,8 @@
         return;
       }
 
-      // Fresh copy on every attempt — a save refused because of a conflict
-      // must not leave its expansion behind for the next attempt
       var newDays = Object.assign({}, days);
 
-      // Expand weekly template into per-day entries for the specified date range
       if (hasPeriod) {
         while (cur <= end) {
           var dateStr = cur.getFullYear() + '-' +
@@ -1455,7 +1378,6 @@
         }
       }
 
-      // Prune per-day entries older than 7 days
       var pruneDate = new Date();
       pruneDate.setDate(pruneDate.getDate() - 7);
       var pruneDateStr = pruneDate.getFullYear() + '-' +
@@ -1466,14 +1388,9 @@
       });
 
       saveSchedule({
-        // Applying hours to a period makes the per-day entries the source of
-        // truth, so an old weekly template is dropped. A blocks-only save must
-        // leave whatever hours the doctor already has untouched.
-        defaultWeek: hasPeriod ? null : (sched.defaultWeek || sched.weeklyHours || null),
+        defaultWeek: hasPeriod ? null : (sched.defaultWeek || null),
         validFrom: hasPeriod ? null : (sched.validFrom || null),
         validUntil: hasPeriod ? null : (sched.validUntil || null),
-        // The hours last applied: prefills this form next time, and tells the
-        // booking page that this doctor keeps a schedule (see booking.js)
         lastWeek: hasPeriod ? wh : (sched.lastWeek || null),
         busyBlocks: busyBlocks.slice(),
         days: newDays
@@ -1511,7 +1428,7 @@
         var conflicts = [];
         snap.forEach(function(doc) {
           var b = doc.data();
-          var dur = b.duration || getServiceDuration(b.service) || 20;
+          var dur = visitDuration(b);
           var err = validateAgainstScheduleData(b.time, dur, b.date, data);
           if (err) conflicts.push(b.date + ' ' + b.time + ' \u2014 ' + (b.patientName || '') + ': ' + err);
         });
@@ -1524,10 +1441,7 @@
         }
         return window.PawsomeDB.collection('doctorSchedules').doc(currentUser.uid)
           .set(data)
-          .then(function() {
-            doctorScheduleCache[currentUser.uid] = data;
-            closeScheduleModal();
-          });
+          .then(closeScheduleModal);
       })
       .catch(function(err) {
         errorEl.textContent = err && err.code
@@ -1539,7 +1453,6 @@
       });
   }
 
-  // ── VIEW SCHEDULE MODAL ──
   function loadAllDoctors() {
     return window.PawsomeDB.collection('doctors').get().then(function(snap) {
       allDoctors = [];
@@ -1586,7 +1499,7 @@
       var firstDay = new Date(year, month, 1);
       var lastDate = new Date(year, month + 1, 0).getDate();
       var startOffset = (firstDay.getDay() + 6) % 7;
-      var totalCells = 42; // always 6 rows
+      var totalCells = 42;
       var prevMonthLastDate = new Date(year, month, 0).getDate();
 
       var html = '<div class="vs-cal-header">';
@@ -1632,18 +1545,15 @@
         return '<div class="' + cls + '">' + inner + '</div>';
       }
 
-      // Previous month trailing days
       for (var i = startOffset - 1; i >= 0; i--) {
         var prevD = prevMonthLastDate - i;
         var prevM = month - 1, prevY = year;
         if (prevM < 0) { prevM = 11; prevY--; }
         html += renderCell(prevY, prevM, prevD, true);
       }
-      // Current month days
       for (var d = 1; d <= lastDate; d++) {
         html += renderCell(year, month, d, false);
       }
-      // Next month leading days
       var filled = startOffset + lastDate;
       var nextD = 1;
       var nextM = month + 1, nextY = year;
@@ -1743,7 +1653,6 @@
     }, { once: true });
   }
 
-  // ── WEEK SCHEDULE MODAL ──
   function getWeekDates(weekOffset) {
     weekOffset = weekOffset || 0;
     var today = new Date();
@@ -1776,12 +1685,10 @@
     return mDay + ' ' + mMonth + ' \u2013 ' + sDay + ' ' + sMonth + ' ' + sYear;
   }
 
-  // filterDoctorId: null = all doctors, string = single doctor
   function buildWeekGrid(weekDates, apptsByDate, filterDoctorId, todayStr, doctorNameMap) {
     var dayNames = ['Poniedziałek','Wtorek','Środa','Czwartek','Piątek','Sobota','Niedziela'];
-    var dowForDate = [1,2,3,4,5,6,0]; // Mon..Sun → JS getDay values
+    var dowForDate = [1,2,3,4,5,6,0];
 
-    // Polish plural: 1 wizyta, 2–4 wizyty, 5–21 wizyt, 22–24 wizyty…
     function apptCountLabel(n) {
       if (n === 1) return '1 wizyta';
       var last = n % 10, lastTwo = n % 100;
@@ -1800,7 +1707,6 @@
         return timeToMins(a.time) - timeToMins(b.time);
       });
 
-      // For single-doctor mode: pull schedule config + busy blocks
       var sched = filterDoctorId ? doctorScheduleCache[filterDoctorId] : null;
       var cfg = filterDoctorId ? resolveDayConfig(sched, dateStr, jsdow) : null;
       var isActive = cfg && cfg.active;
@@ -1825,7 +1731,6 @@
       html += '<span class="week-day-date">' + escapeHtml(dateLabel) + '</span>';
       html += '</div>';
 
-      // Schedule info — only in single-doctor mode
       if (filterDoctorId) {
         if (isActive) {
           html += '<div class="week-day-hours">' + escapeHtml(cfg.start) + '\u2013' + escapeHtml(cfg.end) + '</div>';
@@ -1844,7 +1749,7 @@
         html += '<div class="week-appt-count">' + escapeHtml(apptCountLabel(dayAppts.length)) + '</div>';
         html += '<div class="week-appt-list">';
         dayAppts.forEach(function(a) {
-          var endTime = minsToTime(timeToMins(a.time) + (a.duration || getServiceDuration(a.service) || 20));
+          var endTime = minsToTime(timeToMins(a.time) + visitDuration(a));
           var statusCls = a.status === 'accepted' ? 'week-appt-status-accepted' : 'week-appt-status-pending';
           var itemBorder = a.status === 'accepted' ? 'week-appt-accent-accepted' : 'week-appt-accent-pending';
           var statusLabel = a.status === 'accepted' ? 'Potw.' : 'Oczek.';
@@ -1940,13 +1845,11 @@
       contentEl.innerHTML = '<div class="week-sched-loading">Ładowanie wizyt\u2026</div>';
 
       var requestedWeek = weekDates;
-      // One range query for the whole week (single-field index, no composite needed)
       window.PawsomeDB.collection('appointments')
         .where('date', '>=', requestedWeek[0])
         .where('date', '<=', requestedWeek[6])
         .get()
         .then(function(snap) {
-          // Ignore a response that arrives after the user moved to another week/doctor
           if (requestedWeek !== weekDates || doctorId !== selectedDoctorId) return;
           var apptsByDate = {};
           snap.forEach(function(doc) {
@@ -2002,9 +1905,6 @@
     }, { once: true });
   }
 
-  // ══════════════════════════════════════════════════════════
-  // ── MAIN TAB SWITCHING ──
-  // ══════════════════════════════════════════════════════════
   var mainTabs = document.querySelectorAll('.admin-main-tab');
   var doctorsTab = document.getElementById('main-tab-doctors');
   var viewBookings = document.getElementById('view-bookings');
@@ -2026,9 +1926,6 @@
     });
   });
 
-  // Called on every sign-in: a different user may sign in without a page
-  // reload. The Doctors tab is admin-only because the rules let only admins
-  // write `doctors` and `roles`.
   function resetDoctorsView() {
     doctorsLoaded = false;
     doctorsContainer.innerHTML = '';
@@ -2043,9 +1940,6 @@
     viewDoctors.style.display = 'none';
   }
 
-  // ══════════════════════════════════════════════════════════
-  // ── DOCTORS ──
-  // ══════════════════════════════════════════════════════════
   function loadDoctorsView() {
     doctorsContainer.innerHTML = '<div style="text-align:center;padding:2rem;color:#888">Ładowanie lekarzy...</div>';
     loadAllDoctors().then(renderDoctorsView, function(err) {
@@ -2080,16 +1974,12 @@
   });
 
   function deleteDoctor(id) {
-    // Deleting the role is what revokes panel access, and the rules need the
-    // caller's own admin role for the remaining deletes
     if (currentUser && id === currentUser.uid) {
       alert('Nie możesz usunąć własnego profilu — utraciłbyś dostęp do panelu.');
       return;
     }
     if (!confirm('Na pewno usunąć?')) return;
     var db = window.PawsomeDB;
-    // Visits and their slot cells would be orphaned — refuse while the doctor
-    // still has upcoming ones. Single-field filter: no composite index needed.
     db.collection('appointments').where('doctorId', '==', id).get().then(function(snap) {
       var todayStr = formatDateInput(new Date());
       var upcoming = 0;
@@ -2101,14 +1991,12 @@
         alert(upcomingVisitsMessage(upcoming));
         return;
       }
-      // Role first, so access is gone even if a later step fails
-      return db.collection('roles').doc(id).delete().then(function() {
-        return db.collection('doctorSchedules').doc(id).delete();
-      }).then(function() {
-        return db.collection('doctors').doc(id).delete();
-      }).then(function() {
+      var batch = db.batch();
+      batch.delete(db.collection('roles').doc(id));
+      batch.delete(db.collection('doctorSchedules').doc(id));
+      batch.delete(db.collection('doctors').doc(id));
+      return batch.commit().then(function() {
         allDoctors = allDoctors.filter(function(d) { return d.id !== id; });
-        delete doctorScheduleCache[id];
         renderDoctorsView();
         refreshDisplay(datePicker.value);
         alert('Lekarz został usunięty. Jego konto logowania można usunąć tylko w konsoli Firebase (Authentication) — bez roli nie zaloguje się już do panelu.');
@@ -2118,7 +2006,6 @@
     });
   }
 
-  // Polish plural forms: 1 wizytę, 2–4 wizyty, 5+ wizyt (12–14 → wizyt)
   function upcomingVisitsMessage(n) {
     var last = n % 10, lastTwo = n % 100;
     if (n === 1) {
@@ -2159,7 +2046,6 @@
     return { overlay: overlay, modal: modal, close: close };
   }
 
-  // ── Create Firebase Auth account + assign doctor role ──
   function createDoctorAuthAccount(email) {
     return new Promise(function(resolve, reject) {
       var secondaryApp = firebase.initializeApp(firebase.app().options, 'secondary');
@@ -2174,8 +2060,6 @@
           return secondaryAuth.signOut().then(function() {
             return secondaryApp.delete();
           }).then(function() {
-            return window.PawsomeDB.collection('roles').doc(uid).set({ role: 'doctor' });
-          }).then(function() {
             resolve(uid);
           });
         })
@@ -2186,15 +2070,14 @@
     });
   }
 
-  // `doctor` is an entry of allDoctors, or null to add a new doctor
   function openDoctorModal(doctor) {
     var isNew = !doctor;
 
     var m = createModalOverlay();
     var html = '<button class="editor-modal-close">&times;</button>';
     html += '<h3>' + (isNew ? 'Dodaj lekarza' : 'Edytuj lekarza') + '</h3>';
-    // The email is only the login; it is never stored in the publicly readable doctors doc
     if (isNew) {
+// Never store the email in the doctors doc: anyone can read it.
       html += '<div class="editor-field"><label for="ed-doc-email">Email (login)</label>' +
         '<input type="email" id="ed-doc-email" placeholder="np. jan@klinika.pl"></div>';
     }
@@ -2215,11 +2098,13 @@
 
       this.disabled = true;
       var self = this;
-      // Set once a login account has been created: how the doctor gets a password
       var accountNote = '';
 
       function saveDoc(docId) {
-        db.collection('doctors').doc(docId).set(data).then(function() {
+        var batch = db.batch();
+        batch.set(db.collection('doctors').doc(docId), data);
+        if (isNew) batch.set(db.collection('roles').doc(docId), { role: 'doctor' });
+        batch.commit().then(function() {
           if (isNew) {
             allDoctors.push({ id: docId, name: data.name, specialty: data.specialty });
           } else {
@@ -2242,8 +2127,6 @@
         return;
       }
       createDoctorAuthAccount(email).then(function(uid) {
-        // The account has a random password nobody knows — send a link to set
-        // one (best effort; the login page offers the same reset).
         return window.PawsomeAuth.sendPasswordResetEmail(email).then(function() {
           accountNote = 'Konto lekarza zostało utworzone. Link do ustawienia hasła wysłano na adres ' + email + '.';
         }, function() {
@@ -2264,6 +2147,5 @@
     });
   }
 
-  // ── INIT ──
   initAuth();
 })();
